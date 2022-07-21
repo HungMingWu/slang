@@ -60,10 +60,25 @@ std::shared_ptr<SyntaxTree> SyntaxTree::fromBuffer(const SourceBuffer& buffer,
     return create(sourceManager, span(&buffer, 1), options, false);
 }
 
+std::shared_ptr<SyntaxTree> SyntaxTree::fromBuffer(const SourceBuffer& buffer,
+                                                   SourceManager& sourceManager,
+                                                   const Bag& options,
+                                                   Preprocessor& preprocessor) {
+    return create(sourceManager, span(&buffer, 1), options, preprocessor, false);
+}
+
+
 std::shared_ptr<SyntaxTree> SyntaxTree::fromBuffers(span<const SourceBuffer> buffers,
                                                     SourceManager& sourceManager,
                                                     const Bag& options) {
     return create(sourceManager, buffers, options, false);
+}
+
+std::shared_ptr<SyntaxTree> SyntaxTree::fromBuffers(span<const SourceBuffer> buffers,
+                                                    SourceManager& sourceManager,
+                                                    const Bag& options,
+                                                    Preprocessor& preprocessor) {
+    return create(sourceManager, buffers, options, preprocessor, false);
 }
 
 SourceManager& SyntaxTree::getDefaultSourceManager() {
@@ -81,9 +96,8 @@ SyntaxTree::SyntaxTree(SyntaxNode* root, SourceManager& sourceManager, BumpAlloc
 std::shared_ptr<SyntaxTree> SyntaxTree::create(SourceManager& sourceManager,
                                                span<const SourceBuffer> sources, const Bag& options,
                                                bool guess) {
-    BumpAllocator alloc;
-    Diagnostics diagnostics;
-    Preprocessor preprocessor(sourceManager, alloc, diagnostics, options);
+
+    Preprocessor preprocessor(sourceManager, options);
 
     for (auto it = sources.rbegin(); it != sources.rend(); it++)
         preprocessor.pushSource(*it);
@@ -99,8 +113,36 @@ std::shared_ptr<SyntaxTree> SyntaxTree::create(SourceManager& sourceManager,
             return create(sourceManager, sources, options, false);
     }
 
-    return std::shared_ptr<SyntaxTree>(new SyntaxTree(root, sourceManager, std::move(alloc),
-                                                      std::move(diagnostics), parser.getMetadata(),
+    return std::shared_ptr<SyntaxTree>(
+        new SyntaxTree(root, sourceManager, std::move(preprocessor).getAllocator(),
+                                                      std::move(preprocessor).getDiagnostics(),
+                                                      parser.getMetadata(),
+                                                      options));
+}
+
+std::shared_ptr<SyntaxTree> SyntaxTree::create(SourceManager& sourceManager,
+                                               span<const SourceBuffer> sources,
+                                               const Bag& options,
+                                               Preprocessor& preprocessor,
+                                               bool guess) {
+
+    for (auto it = sources.rbegin(); it != sources.rend(); it++)
+        preprocessor.pushSource(*it);
+
+    Parser parser(preprocessor, options);
+
+    SyntaxNode* root;
+    if (!guess)
+        root = &parser.parseCompilationUnit();
+    else {
+        root = &parser.parseGuess();
+        if (!parser.isDone())
+            return create(sourceManager, sources, options, preprocessor, false);
+    }
+
+    return std::shared_ptr<SyntaxTree>(
+        new SyntaxTree(root, sourceManager, std::move(preprocessor).getAllocator(),
+                       std::move(preprocessor).getDiagnostics(), parser.getMetadata(),
                                                       options));
 }
 

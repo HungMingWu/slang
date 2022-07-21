@@ -753,8 +753,7 @@ const Expression* Compilation::getDefaultDisable(const Scope& scope) const {
 }
 
 const NameSyntax& Compilation::parseName(string_view name) {
-    Diagnostics localDiags;
-    auto& result = tryParseName(name, localDiags);
+    auto [result, localDiags] = tryParseName(name);
 
     if (!localDiags.empty()) {
         SourceManager& sourceMan = SyntaxTree::getDefaultSourceManager();
@@ -765,13 +764,14 @@ const NameSyntax& Compilation::parseName(string_view name) {
     return result;
 }
 
-const NameSyntax& Compilation::tryParseName(string_view name, Diagnostics& localDiags) {
+std::tuple<std::reference_wrapper<const NameSyntax>, Diagnostics> Compilation::tryParseName(string_view name) {
     SourceManager& sourceMan = SyntaxTree::getDefaultSourceManager();
-    Preprocessor preprocessor(sourceMan, *this, localDiags);
+    Preprocessor preprocessor(sourceMan);
     preprocessor.pushSource(sourceMan.assignText(name));
+    ScopeGuard _([&] { steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
-    return parser.parseName();
+    return { std::cref(parser.parseName()), std::move(preprocessor).getDiagnostics() };
 }
 
 CompilationUnitSymbol& Compilation::createScriptScope() {
@@ -1102,10 +1102,10 @@ void Compilation::parseParamOverrides(flat_hash_map<string_view, const ConstantV
         if (index != std::string::npos) {
             // We found the equals sign, so split out the name and parse that.
             // For now, the name must always be a simple identifier.
-            Diagnostics localDiags;
             string_view optView = opt;
             string_view name = optView.substr(0, index);
-            if (tryParseName(name, localDiags).kind == SyntaxKind::IdentifierName &&
+            auto [result, localDiags] = tryParseName(name);
+            if (result.get().kind == SyntaxKind::IdentifierName &&
                 localDiags.empty()) {
 
                 // The name is good, evaluate the value string. Using the ScriptSession

@@ -5,42 +5,42 @@
 
 TEST_CASE("Simple module") {
     auto& text = "module foo(); endmodule";
-    const auto& module = parseModule(text);
+    auto [module, diagnostics] = parseModule(text);
 
     REQUIRE(module.kind == SyntaxKind::ModuleDeclaration);
     CHECK(module.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     CHECK(module.header->name.valueText() == "foo");
 }
 
 TEST_CASE("Simple interface") {
     auto& text = "interface foo(); endinterface";
-    const auto& module = parseModule(text);
+    auto [module, diagnostics] = parseModule(text);
 
     REQUIRE(module.kind == SyntaxKind::InterfaceDeclaration);
     CHECK(module.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     CHECK(module.header->name.valueText() == "foo");
 }
 
 TEST_CASE("Simple program") {
     auto& text = "program foo(); endprogram";
-    const auto& module = parseModule(text);
+    auto [module, diagnostics] = parseModule(text);
 
     REQUIRE(module.kind == SyntaxKind::ProgramDeclaration);
     CHECK(module.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     CHECK(module.header->name.valueText() == "foo");
 }
 
 TEST_CASE("Complex header") {
     auto& text = "(* foo = 4 *) macromodule automatic foo import blah::*, foo::bar; #(foo = bar, "
                  "parameter blah, stuff) (input wire i = 3); endmodule";
-    const auto& module = parseModule(text);
+    auto [module, diagnostics] = parseModule(text);
 
     REQUIRE(module.kind == SyntaxKind::ModuleDeclaration);
     CHECK(module.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     CHECK(module.header->name.valueText() == "foo");
     CHECK(module.attributes.size() == 1);
     CHECK(module.header->imports[0]->items.size() == 2);
@@ -51,11 +51,11 @@ TEST_CASE("Complex header") {
 TEST_CASE("Parameter ports") {
     auto& text = "module foo #(foo, foo [3:1][9:0] = 4:3:9, parameter blah = blah, localparam type "
                  "stuff = shortint, stuff2, stuff3 = int, Blah blahblah); endmodule";
-    const auto& module = parseModule(text);
+    auto [module, diagnostics] = parseModule(text);
 
     REQUIRE(module.kind == SyntaxKind::ModuleDeclaration);
     CHECK(module.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 
     auto parameters = module.header->parameters->declarations;
     REQUIRE(parameters.size() == 5);
@@ -80,11 +80,11 @@ TEST_CASE("Parameter ports") {
 
 const MemberSyntax* parseModuleMember(const std::string& text, SyntaxKind kind) {
     auto fullText = "module foo; " + text + " endmodule";
-    const auto& module = parseModule(fullText);
+    auto [module, diagnostics] = parseModule(fullText);
 
     REQUIRE(module.kind == SyntaxKind::ModuleDeclaration);
     CHECK(module.toString() == fullText);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 
     REQUIRE(module.members.size() == 1);
     REQUIRE(module.members[0]->kind == kind);
@@ -134,11 +134,11 @@ TEST_CASE("Parse buffer resize") {
 
 const MemberSyntax* parseClassMember(const std::string& text, SyntaxKind kind) {
     auto fullText = "class foo; " + text + " endclass";
-    const auto& classDecl = parseClass(fullText);
+    auto [classDecl, diagnostics] = parseClass(fullText);
 
     REQUIRE(classDecl.kind == SyntaxKind::ClassDeclaration);
     CHECK(classDecl.toString() == fullText);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 
     REQUIRE(classDecl.items.size() == 1);
     REQUIRE(classDecl.items[0]->kind == kind);
@@ -165,8 +165,8 @@ function C::new(int i);
 endfunction : new
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Property declarations") {
@@ -179,9 +179,7 @@ c1: cover property (@(posedge clk) a #-# p3);
 a1: assert property (@(posedge clk) a |-> p3);
 )";
 
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(string_view(text));
 
     Parser parser(preprocessor);
@@ -189,11 +187,12 @@ a1: assert property (@(posedge clk) a |-> p3);
     auto propertyDecl = parser.parseSingleMember(SyntaxKind::ModuleDeclaration);
     auto coverStatement = parser.parseSingleMember(SyntaxKind::ModuleDeclaration);
     auto assertStatement = parser.parseSingleMember(SyntaxKind::ModuleDeclaration);
+    auto diagnostics = std::move(preprocessor).getDiagnostics();
 
     REQUIRE(propertyDecl);
     REQUIRE(coverStatement);
     REQUIRE(assertStatement);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Trailing block names -- ok") {
@@ -214,8 +213,8 @@ function foo;
 endfunction : foo
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Trailing block names -- errors") {
@@ -241,7 +240,7 @@ class C;
 endclass : Baz
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::ExpectedIdentifier);
@@ -258,7 +257,7 @@ module m1;
 endmodule : m1;
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::ImplicitNotAllowed);
@@ -280,7 +279,7 @@ endmodule
 `resetall
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::DirectiveInsideDesignElement);
@@ -299,7 +298,7 @@ module n;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 3);
     CHECK(diagnostics[0].code == diag::ExpectedIdentifier);
@@ -316,7 +315,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 3);
     CHECK(diagnostics[0].code == diag::DuplicateDeclModifier);
@@ -333,7 +332,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::TypeRefDeclVar);
@@ -347,7 +346,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::ExpectedContinuousAssignment);
@@ -361,7 +360,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::ExpectedMember);
@@ -397,7 +396,7 @@ package p;
 endpackage
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 8);
     CHECK(diagnostics[0].code == diag::NotAllowedInInterface);
@@ -436,7 +435,7 @@ function C::D::baz();
 endfunction
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics]  = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 7);
     CHECK(diagnostics[0].code == diag::TaskReturnType);
@@ -467,7 +466,7 @@ class B extends A;
 endclass
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::InvalidSuperNew);
@@ -483,8 +482,8 @@ bind targetScope.foo[3].bar m1 #(3) a(1);
 bind other: b1, $root.b1[1] m1 #(4) b(0);
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Missing semicolon error recovery") {
@@ -495,9 +494,9 @@ module test;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
-    std::string result = "\n" + reportGlobalDiags();
+    std::string result = "\n" + reportGlobalDiags(diagnostics);
     CHECK(result == R"(
 source:3:10: error: expected ';'
     int a
@@ -516,7 +515,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::RegAfterNettype);
@@ -539,7 +538,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 6);
     CHECK(diagnostics[0].code == diag::PullStrengthHighZ);
@@ -556,7 +555,7 @@ import "DPI-C" function automatic void foo();
 import "DPI-C" function void foo::bar();
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::LifetimeForPrototype);
@@ -587,8 +586,8 @@ primitive d_edge_ff (q, clock, data);
 endprimitive
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("specify block parsing") {
@@ -616,8 +615,8 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("specify block parsing errors") {
@@ -629,7 +628,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::InvalidEdgeDescriptor);
@@ -651,7 +650,7 @@ package p3 ();
 endpackage
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 3);
     CHECK(diagnostics[0].code == diag::InvalidPackageDecl);
@@ -665,7 +664,7 @@ module m import p::*;;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::ExpectedPortList);
@@ -677,7 +676,7 @@ function wire [3:0] asdf;
 endfunction
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::WireDataType);
@@ -703,8 +702,8 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Clocking block parser errors") {
@@ -720,7 +719,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::ExpectedClockingSkew);
@@ -757,8 +756,8 @@ module rlMod(input interconnect [0:1] iBus);
 endmodule : rlMod
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Net alias parsing") {
@@ -768,8 +767,8 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Package export parsing") {
@@ -780,8 +779,8 @@ package p;
 endpackage
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Covergroup parsing") {
@@ -878,8 +877,8 @@ covergroup sg @(posedge clk);
 endgroup
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Package-scoped checker instance parsing") {
@@ -895,8 +894,8 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Parser list error recovery") {
@@ -921,9 +920,9 @@ module N (input int a
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
-    std::string result = "\n" + reportGlobalDiags();
+    std::string result = "\n" + reportGlobalDiags(diagnostics);
     CHECK(result == R"(
 source:12:11: error: expected ';'
     node a
@@ -947,7 +946,7 @@ module m(interconnect logic i);
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 4);
     CHECK(diagnostics[0].code == diag::InterconnectTypeSyntax);
@@ -966,8 +965,8 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Extern interface method parsing") {
@@ -989,8 +988,8 @@ module memMod(interface a);
 endmodule
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Config declaration parsing") {
@@ -1021,6 +1020,6 @@ config cfg6;
 endconfig
 )";
 
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }

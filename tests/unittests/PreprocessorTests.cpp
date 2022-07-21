@@ -4,11 +4,10 @@
 #include "slang/syntax/AllSyntax.h"
 #include "slang/syntax/SyntaxPrinter.h"
 #include "slang/text/SourceManager.h"
+#include "slang/util/ScopeGuard.h"
 
-std::string preprocess(string_view text, const Bag& options = {}) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics, options);
+std::tuple<std::string, Diagnostics> preprocess(string_view text, const Bag& options = {}) {
+    Preprocessor preprocessor(getSourceManager(), options);
     preprocessor.pushSource(text);
 
     std::string result;
@@ -19,25 +18,25 @@ std::string preprocess(string_view text, const Bag& options = {}) {
             break;
     }
 
-    return result;
+    return { result, std::move(preprocessor).getDiagnostics() };
 }
 
 TEST_CASE("Include File") {
     auto& text = "`include \"include.svh\"";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == "test string");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("System include file") {
     auto& text = "`include <system.svh>";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == "system stuff!");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Double include, no pragma once") {
@@ -52,11 +51,11 @@ TEST_CASE("Double include, no pragma once") {
 "test string"
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     result.erase(std::remove(result.begin(), result.end(), '\r'), result.end());
 
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Double include, with pragma once") {
@@ -69,11 +68,11 @@ TEST_CASE("Double include, with pragma once") {
 "test string"
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     result.erase(std::remove(result.begin(), result.end(), '\r'), result.end());
 
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Include directive errors") {
@@ -91,7 +90,7 @@ TEST_CASE("Include directive errors") {
     Bag options;
     options.set(ppOptions);
 
-    preprocess(text, options);
+    auto [_, diagnostics] = preprocess(text, options);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::CouldNotOpenIncludeFile);
@@ -114,7 +113,7 @@ void testDirective(SyntaxKind kind) {
     CHECK(token.kind == TokenKind::Directive);
     CHECK(token.toString() == text);
     CHECK(token.valueText() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Directives") {
@@ -144,13 +143,13 @@ TEST_CASE("Directives") {
 
 TEST_CASE("Macro define (simple)") {
     auto& text = "`define FOO (1)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     std::string str = SyntaxPrinter().setIncludeDirectives(true).print(token).str();
 
     CHECK(token.kind == TokenKind::EndOfFile);
     CHECK(str == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     REQUIRE(token.trivia().size() == 1);
     REQUIRE(token.trivia()[0].kind == TriviaKind::Directive);
 
@@ -164,13 +163,13 @@ TEST_CASE("Macro define (simple)") {
 
 TEST_CASE("Macro define (function-like)") {
     auto& text = "`define FOO(a) a+1";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     std::string str = SyntaxPrinter().setIncludeDirectives(true).print(token).str();
 
     CHECK(token.kind == TokenKind::EndOfFile);
     CHECK(str == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     REQUIRE(token.trivia().size() == 1);
     REQUIRE(token.trivia()[0].kind == TriviaKind::Directive);
 
@@ -186,7 +185,7 @@ TEST_CASE("Macro define (function-like)") {
 
 TEST_CASE("Macro usage (undefined)") {
     auto& text = "`FOO";
-    lexToken(text);
+    auto [_, diagnostics] = lexToken(text);
 
     REQUIRE(!diagnostics.empty());
     CHECK(diagnostics.back().code == diag::UnknownDirective);
@@ -194,122 +193,122 @@ TEST_CASE("Macro usage (undefined)") {
 
 TEST_CASE("Macro usage (simple)") {
     auto& text = "`define FOO 42\n`FOO";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 42);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (simple)") {
     auto& text = "`define FOO(x) x\n`FOO(3)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 3);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (defaults)") {
     auto& text = "`define FOO(x=9(,), y=2) x\n`FOO()";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 9);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (no tokens)") {
     auto& text = "`define FOO(x=) x\n`FOO()";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::EndOfFile);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (apostrophe brace list in args)") {
     auto& text = "`define FOO(x) x\n`FOO('{a, b})";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::ApostropheOpenBrace);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (simple nesting)") {
     auto& text = "`define BLAHBLAH(x) x\n`define BAR(x) `BLAHBLAH(x)\n`define BAZ(x) "
                  "`BAR(x)\n`define FOO(y) `BAZ(y)\n`FOO(15)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 15);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (arg nesting)") {
     auto& text = "`define FOO(x) x\n`FOO(`FOO(3))";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 3);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Function macro (keyword as formal argument)") {
     auto& text = "`define FOO(type) type\n`FOO(3)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 3);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro pasting (identifiers)") {
     auto& text = "`define FOO(x,y) x``_blah``y\n`FOO(   bar,    _BAZ)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::Identifier);
     CHECK(token.valueText() == "bar_blah_BAZ");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro pasting (operator)") {
     auto& text = "`define FOO(x) x``+\n`FOO(+)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::DoublePlus);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro pasting (combination)") {
     auto& text = "`define FOO(x,y) x``foo``y``42\n`FOO(bar_, 32)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::Identifier);
     CHECK(token.valueText() == "bar_foo3242");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro pasting (keyword)") {
     auto& text = "`define FOO(x) x``gic\n`FOO(lo)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::LogicKeyword);
     CHECK(token.valueText() == "logic");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro pasting (mixed)") {
     auto& text = "`define FOO(x) ;``x\n`FOO(y)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::Semicolon);
     CHECK(token.valueText() == ";");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro pasting (whitespace)") {
     auto& text = "`define FOO(x) x`` y\n`FOO(a)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::Identifier);
     CHECK(token.valueText() == "a");
@@ -318,7 +317,7 @@ TEST_CASE("Macro pasting (whitespace)") {
 
 TEST_CASE("Macro pasting (weird)") {
     auto& text = "`define FOO(x) x``\\  \n`FOO(`)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::Unknown);
     REQUIRE(diagnostics.size() == 2);
@@ -326,34 +325,34 @@ TEST_CASE("Macro pasting (weird)") {
 
 TEST_CASE("Macro pasting (weird 2)") {
     auto& text = "`define FOO(x,y) x``y  \n`FOO(a,)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::Identifier);
     CHECK(token.valueText() == "a");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro stringify") {
     auto& text = "`define FOO(x) `\" `\\`\" x``foo``42 `\\`\" `\"\n`FOO(bar_)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == " \" bar_foo42 \"");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro stringify whitespace") {
     auto& text = "`define FOO(x,y) `\" x ( y)\t  x   x`\"\n`FOO(bar,)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == " bar ( )\t  bar   bar");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro stringify useless concatenation") {
     auto& text = "`define FOO(x) `\"``x`\" \n`FOO(a)";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == "a");
@@ -363,7 +362,7 @@ TEST_CASE("Macro stringify useless concatenation") {
 
 TEST_CASE("Macro define with missing paren") {
     auto& text = "`define FOO(asdf asdfasdf";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::EndOfFile);
     REQUIRE(diagnostics.size() == 1);
@@ -372,7 +371,7 @@ TEST_CASE("Macro define with missing paren") {
 
 TEST_CASE("Macro default with missing paren") {
     auto& text = "`define FOO(asdf= asdfasdf";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::EndOfFile);
     REQUIRE(diagnostics.size() == 1);
@@ -381,7 +380,7 @@ TEST_CASE("Macro default with missing paren") {
 
 TEST_CASE("Macro usage with missing paren") {
     auto& text = "`define FOO(asdf)\n`FOO(lkj ";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::EndOfFile);
     REQUIRE(diagnostics.size() == 1);
@@ -403,11 +402,11 @@ TEST_CASE("Macro deferred define") {
 
 `FOO
 )";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 1);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro string expansions") {
@@ -457,7 +456,7 @@ $display(1,,0,,"C");
 $display(5,,0,,"C");
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::NotEnoughMacroArgs);
@@ -485,9 +484,9 @@ b + 1 + 42 + a
 $display("left side: \"right side\"");
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro string expansions 3") {
@@ -508,9 +507,9 @@ asdf blah[1,2,3]
 "a1b2\n""asdf\n"123foo
 )**";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro meta repetition") {
@@ -531,9 +530,9 @@ TEST_CASE("Macro meta repetition") {
 "hello" "hello" "hello" "hello"
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro nested stringification") {
@@ -548,9 +547,9 @@ $display(`MSG(`THRU(hello)))
 $display("hello")
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro nested multiline stringification") {
@@ -567,9 +566,9 @@ $display(`MSG(`MULTILINE))
 $display("line1 line2")
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro indirect ifdef branch") {
@@ -585,9 +584,9 @@ b
 
     auto& expected = "\na\n";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro directive token substitution via arg") {
@@ -602,9 +601,9 @@ TEST_CASE("Macro directive token substitution via arg") {
 1
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro bonkers arg substitution") {
@@ -619,9 +618,9 @@ TEST_CASE("Macro bonkers arg substitution") {
 1
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Recursive macros") {
@@ -636,7 +635,7 @@ TEST_CASE("Recursive macros") {
 `FOO(`ARG)
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::RecursiveMacro);
     CHECK(diagnostics[1].code == diag::RecursiveMacro);
@@ -651,8 +650,8 @@ TEST_CASE("Not recursive macros") {
 `FOO
 )";
 
-    preprocess(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = preprocess(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Unknown macro as arg not an error") {
@@ -664,9 +663,9 @@ TEST_CASE("Unknown macro as arg not an error") {
 foo
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Two expansions of same macro") {
@@ -683,9 +682,9 @@ foo foo
 foofoo
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro with escaped name") {
@@ -699,9 +698,9 @@ TEST_CASE("Macro with escaped name") {
 foo
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Nested macro with different body locations") {
@@ -717,9 +716,9 @@ TEST_CASE("Nested macro with different body locations") {
 )";
     auto& expected = "\n     \n         \n    \n(32 * 4)\n";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro arg location bug") {
@@ -732,10 +731,10 @@ TEST_CASE("Macro arg location bug") {
       asdfasdfasdfasdfasdfasdfsadfasdfasdfasdfasdf
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
 
-    result = "\n" + reportGlobalDiags();
+    result = "\n" + reportGlobalDiags(diagnostics);
     CHECK(result == R"(
 source:4:15: error: unknown macro or compiler directive '`bar'
    `FOO(      `bar      )   asdfasdfasdfasdfasdfasdfsadfasdfasdfasdfasdf
@@ -754,7 +753,7 @@ TEST_CASE("Macro invalid argument handling") {
 `BAR(`FOO(1, 2))
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::ExpectedIdentifier);
@@ -775,7 +774,7 @@ asdfllkj
 foobar
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
 
     REQUIRE(diagnostics.size() == 2);
@@ -796,9 +795,9 @@ asdf
 bar
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro with line comment with continuation") {
@@ -813,9 +812,9 @@ bar // hello \
 asdf
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro with block comment") {
@@ -827,9 +826,9 @@ TEST_CASE("Macro with block comment") {
 baz /* hello */ bar
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro with split block comment") {
@@ -844,7 +843,7 @@ lo */ bar
 baz
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::SplitBlockCommentInDirective);
@@ -852,55 +851,55 @@ baz
 
 TEST_CASE("IfDef branch (taken)") {
     auto& text = "`define FOO\n`ifdef FOO\n42\n`endif";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 42);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("IfDef branch (not taken)") {
     auto& text = "`define FOO\n`ifdef BAR\n42\n`endif";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     CHECK(token.kind == TokenKind::EndOfFile);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("IfNDef branch") {
     auto& text = "`ifndef BAR\n42\n`endif";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 42);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("ElseIf branch") {
     auto& text = "`define FOO\n`ifdef BAR\n42\n`elsif FOO\n99`else\n1000`endif";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 99);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("EndIf not done") {
     auto& text = "`ifdef FOO\n`ifdef BAR\n42\n`endif\n1000\n`endif\n42.3";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::RealLiteral);
     CHECK(token.realValue() == 42.3);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Ifdef same line") {
     auto& text = "`ifndef BLAH 1000 `endif";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 1000);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Nested branches") {
@@ -925,11 +924,11 @@ TEST_CASE("Nested branches") {
                  "       `endif\n"
                  "   `endif\n"
                  "`endif";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 99);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("IfDef inside macro") {
@@ -942,11 +941,11 @@ TEST_CASE("IfDef inside macro") {
                  "\n"
                  "`define BAR\n"
                  "`FOO";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 32);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Nested ifdef and macros") {
@@ -962,9 +961,9 @@ TEST_CASE("Nested ifdef and macros") {
 )";
     auto& expected = "\n     \n     \n        asdfasdf \n    \n";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Ifdef error cases") {
@@ -980,7 +979,7 @@ TEST_CASE("Ifdef error cases") {
 `ifdef BAR
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
 
     REQUIRE(diagnostics.size() == 4);
     CHECK(diagnostics[0].code == diag::UnexpectedConditionalDirective);
@@ -991,20 +990,20 @@ TEST_CASE("Ifdef error cases") {
 
 TEST_CASE("LINE Directive") {
     auto& text = "`__LINE__";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 1);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("LINE Directive as actual arg") {
     auto& text = "`define FOO(x) x\n`define BAR `FOO(`__LINE__)\n`BAR";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 3);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("LINE Directive (include+nesting)") {
@@ -1013,9 +1012,8 @@ TEST_CASE("LINE Directive (include+nesting)") {
                  "`define BAR `BAZ\n"
                  "`define FOO `BAR\n"
                  "`FOO";
-    diagnostics.clear();
 
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
 
     // Get the second token, the first token is the test string from the includes
@@ -1025,16 +1023,16 @@ TEST_CASE("LINE Directive (include+nesting)") {
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 5);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("FILE Directive") {
     auto& text = "`__FILE__";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == "source");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("FILE Directive (include+nesting)") {
@@ -1045,12 +1043,10 @@ TEST_CASE("FILE Directive (include+nesting)") {
     auto& text = "`include \"file_uses_defn.svh\"\n"
                  "`BAR";
 
-    diagnostics.clear();
-
     SourceManager sourceManager;
     setupSourceManager(sourceManager);
 
-    Preprocessor preprocessor(sourceManager, alloc, diagnostics);
+    Preprocessor preprocessor(sourceManager);
     preprocessor.pushSource(text);
 
     Token token = preprocessor.next();
@@ -1065,7 +1061,7 @@ TEST_CASE("FILE Directive (include+nesting)") {
     REQUIRE(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() != compare);
 
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("`line + FILE + LINE Directive") {
@@ -1074,12 +1070,10 @@ TEST_CASE("`line + FILE + LINE Directive") {
                  "`include \"file_uses_defn.svh\"\n"
                  "`__FILE__";
 
-    diagnostics.clear();
-
     SourceManager sourceManager;
     setupSourceManager(sourceManager);
 
-    Preprocessor preprocessor(sourceManager, alloc, diagnostics);
+    Preprocessor preprocessor(sourceManager);
     preprocessor.pushSource(text);
 
     Token token = preprocessor.next();
@@ -1095,12 +1089,12 @@ TEST_CASE("`line + FILE + LINE Directive") {
     REQUIRE(token.kind == TokenKind::StringLiteral);
     CHECK(token.valueText() == "other.sv");
 
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Invalid `line directive") {
     auto& text = "`line 6 \"other.sv\" 4";
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
 
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::InvalidLineDirectiveLevel);
@@ -1110,7 +1104,7 @@ TEST_CASE("Coverage macros") {
     PreprocessorOptions ppOptions;
     Bag options;
     options.set(ppOptions);
-    Preprocessor pp(getSourceManager(), alloc, diagnostics, options);
+    Preprocessor pp(getSourceManager(), options);
 
     CHECK(pp.isDefined("SV_COV_START"));
     CHECK(pp.isDefined("SV_COV_STOP"));
@@ -1129,16 +1123,16 @@ TEST_CASE("Coverage macros") {
     CHECK(pp.isDefined("SV_COV_PARTIAL"));
 
     auto& text = "`SV_COV_OK\n";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("undef Directive") {
     auto& text = "`define FOO 45\n"
                  "`undef FOO\n"
                  "`FOO";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     // The macro doesn't expand at all, so we go to end of file,
     // and there should be the error from the attempted expansion
@@ -1150,18 +1144,18 @@ TEST_CASE("undef Directive 2") {
     auto& text = "`define FOO 45\n"
                  "`FOO\n"
                  "`undef FOO\n";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::IntegerLiteral);
     CHECK(token.intValue() == 45);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("undefineall") {
     auto& text = "`define FOO 45\n"
                  "`undefineall\n"
                  "`FOO";
-    Token token = lexToken(text);
+    auto [token, diagnostics] = lexToken(text);
 
     REQUIRE(token.kind == TokenKind::EndOfFile);
     CHECK(!diagnostics.empty());
@@ -1172,9 +1166,8 @@ TEST_CASE("begin_keywords") {
                  "soft\n"
                  "`end_keywords\n"
                  "soft";
-    diagnostics.clear();
 
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
 
     Token token = preprocessor.next();
@@ -1186,7 +1179,7 @@ TEST_CASE("begin_keywords") {
     token = preprocessor.next();
     REQUIRE(token.kind == TokenKind::SoftKeyword);
 
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("begin_keywords (nested)") {
@@ -1198,9 +1191,8 @@ TEST_CASE("begin_keywords (nested)") {
                  "uwire\n"
                  "`end_keywords\n"
                  "`end_keywords\n";
-    diagnostics.clear();
 
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
 
     Token token = preprocessor.next();
@@ -1212,143 +1204,240 @@ TEST_CASE("begin_keywords (nested)") {
     token = preprocessor.next();
     REQUIRE(token.kind == TokenKind::UWireKeyword);
 
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
-optional<TimeScale> lexTimeScale(string_view text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<optional<TimeScale>, Diagnostics> lexTimeScale(string_view text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Token token = preprocessor.next();
     REQUIRE(token);
-    return preprocessor.getTimeScale();
+    return { preprocessor.getTimeScale(), std::move(preprocessor).getDiagnostics() };
 }
 
 TEST_CASE("timescale directive") {
-    auto ts = lexTimeScale("`timescale 10 ns / 1 fs");
-    CHECK_DIAGNOSTICS_EMPTY;
-    REQUIRE(ts.has_value());
-    CHECK(ts->base.magnitude == TimeScaleMagnitude::Ten);
-    CHECK(ts->base.unit == TimeUnit::Nanoseconds);
-    CHECK(ts->precision.magnitude == TimeScaleMagnitude::One);
-    CHECK(ts->precision.unit == TimeUnit::Femtoseconds);
+    {
+        auto [ts, diagnostics] = lexTimeScale("`timescale 10 ns / 1 fs");
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+        REQUIRE(ts.has_value());
+        CHECK(ts->base.magnitude == TimeScaleMagnitude::Ten);
+        CHECK(ts->base.unit == TimeUnit::Nanoseconds);
+        CHECK(ts->precision.magnitude == TimeScaleMagnitude::One);
+        CHECK(ts->precision.unit == TimeUnit::Femtoseconds);
+    }
 
-    ts = lexTimeScale("`timescale 100 s / 10ms");
-    CHECK_DIAGNOSTICS_EMPTY;
-    REQUIRE(ts.has_value());
-    CHECK(ts->base.magnitude == TimeScaleMagnitude::Hundred);
-    CHECK(ts->base.unit == TimeUnit::Seconds);
-    CHECK(ts->precision.magnitude == TimeScaleMagnitude::Ten);
-    CHECK(ts->precision.unit == TimeUnit::Milliseconds);
+    {
+        auto [ts, diagnostics] = lexTimeScale("`timescale 100 s / 10ms");
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+        REQUIRE(ts.has_value());
+        CHECK(ts->base.magnitude == TimeScaleMagnitude::Hundred);
+        CHECK(ts->base.unit == TimeUnit::Seconds);
+        CHECK(ts->precision.magnitude == TimeScaleMagnitude::Ten);
+        CHECK(ts->precision.unit == TimeUnit::Milliseconds);
+    }
 
-    ts = lexTimeScale("`timescale 1us/1ps");
-    CHECK_DIAGNOSTICS_EMPTY;
-    REQUIRE(ts.has_value());
-    CHECK(ts->base.magnitude == TimeScaleMagnitude::One);
-    CHECK(ts->base.unit == TimeUnit::Microseconds);
-    CHECK(ts->precision.magnitude == TimeScaleMagnitude::One);
-    CHECK(ts->precision.unit == TimeUnit::Picoseconds);
+    {
+        auto [ts, diagnostics] = lexTimeScale("`timescale 1us/1ps");
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+        REQUIRE(ts.has_value());
+        CHECK(ts->base.magnitude == TimeScaleMagnitude::One);
+        CHECK(ts->base.unit == TimeUnit::Microseconds);
+        CHECK(ts->precision.magnitude == TimeScaleMagnitude::One);
+        CHECK(ts->precision.unit == TimeUnit::Picoseconds);
+    }
 
-    lexTimeScale("`timescale 10fs / 100fs");
-    CHECK(!diagnostics.empty());
+    {
+        auto [_, diagnostics] = lexTimeScale("`timescale 10fs / 100fs");
+        CHECK(!diagnostics.empty());
+    }
 
-    lexTimeScale("`timescale 10fs 100ns");
-    CHECK(!diagnostics.empty());
+    {
+        auto [_, diagnostics] = lexTimeScale("`timescale 10fs 100ns");
+        CHECK(!diagnostics.empty());
+    }
 
-    lexTimeScale("`timescale 1fs / 10us");
-    CHECK(!diagnostics.empty());
+    {
+        auto [_, diagnostics] = lexTimeScale("`timescale 1fs / 10us");
+        CHECK(!diagnostics.empty());
+    }
 
-    lexTimeScale("`timescale 1 bs / 2fs");
-    CHECK(!diagnostics.empty());
+    {
+        auto [_, diagnostics] = lexTimeScale("`timescale 1 bs / 2fs");
+        CHECK(!diagnostics.empty());
+    }
 
-    lexTimeScale("`timescale 1.2fs / 1fs");
-    CHECK(!diagnostics.empty());
+    {
+        auto [_, diagnostics] = lexTimeScale("`timescale 1.2fs / 1fs");
+        CHECK(!diagnostics.empty());
+    }
 }
 
-TokenKind lexDefaultNetType(string_view text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<TokenKind, Diagnostics> lexDefaultNetType(string_view text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Token token = preprocessor.next();
     REQUIRE(token);
-    return preprocessor.getDefaultNetType();
+    return { preprocessor.getDefaultNetType(), std::move(preprocessor).getDiagnostics() };
 }
 
 TEST_CASE("default_nettype directive") {
-    CHECK(lexDefaultNetType("`default_nettype wire") == TokenKind::WireKeyword);
-    CHECK(lexDefaultNetType("`default_nettype uwire") == TokenKind::UWireKeyword);
-    CHECK(lexDefaultNetType("`default_nettype wand") == TokenKind::WAndKeyword);
-    CHECK(lexDefaultNetType("`default_nettype wor") == TokenKind::WOrKeyword);
-    CHECK(lexDefaultNetType("`default_nettype tri") == TokenKind::TriKeyword);
-    CHECK(lexDefaultNetType("`default_nettype tri0") == TokenKind::Tri0Keyword);
-    CHECK(lexDefaultNetType("`default_nettype tri1") == TokenKind::Tri1Keyword);
-    CHECK(lexDefaultNetType("`default_nettype triand") == TokenKind::TriAndKeyword);
-    CHECK(lexDefaultNetType("`default_nettype trior") == TokenKind::TriOrKeyword);
-    CHECK(lexDefaultNetType("`default_nettype trireg") == TokenKind::TriRegKeyword);
-    CHECK(lexDefaultNetType("`default_nettype none") == TokenKind::Unknown);
-    CHECK_DIAGNOSTICS_EMPTY;
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype wire");
+        CHECK(token == TokenKind::WireKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
 
-    CHECK(lexDefaultNetType("`default_nettype foo") == TokenKind::WireKeyword);
-    CHECK(!diagnostics.empty());
-    CHECK(lexDefaultNetType("`default_nettype module") == TokenKind::WireKeyword);
-    CHECK(!diagnostics.empty());
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype uwire");
+        CHECK(token == TokenKind::UWireKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype wand");
+        CHECK(token == TokenKind::WAndKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype wor");
+        CHECK(token == TokenKind::WOrKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype tri");
+        CHECK(token == TokenKind::TriKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype tri0");
+        CHECK(token == TokenKind::Tri0Keyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype tri1");
+        CHECK(token == TokenKind::Tri1Keyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype triand");
+        CHECK(token == TokenKind::TriAndKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype trior");
+        CHECK(token == TokenKind::TriOrKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype trireg");
+        CHECK(token == TokenKind::TriRegKeyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype none");
+        CHECK(token == TokenKind::Unknown);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype foo");
+        CHECK(token == TokenKind::WireKeyword);
+        CHECK(!diagnostics.empty());
+    }
+
+    {
+        auto [token, diagnostics] = lexDefaultNetType("`default_nettype module");
+        CHECK(token == TokenKind::WireKeyword);
+        CHECK(!diagnostics.empty());
+    }
 }
 
-TokenKind lexUnconnectedDrive(string_view text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<TokenKind, Diagnostics> lexUnconnectedDrive(string_view text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Token token = preprocessor.next();
     REQUIRE(token);
-    return preprocessor.getUnconnectedDrive();
+    return { preprocessor.getUnconnectedDrive(), std::move(preprocessor).getDiagnostics() };
 }
 
 TEST_CASE("unconnected_drive directive") {
-    CHECK(lexUnconnectedDrive("`unconnected_drive pull0") == TokenKind::Pull0Keyword);
-    CHECK(lexUnconnectedDrive("`unconnected_drive pull1") == TokenKind::Pull1Keyword);
-    CHECK(lexUnconnectedDrive("`nounconnected_drive") == TokenKind::Unknown);
-    CHECK_DIAGNOSTICS_EMPTY;
+    {
+        auto [token, diagnostics] = lexUnconnectedDrive("`unconnected_drive pull0");
+        CHECK(token == TokenKind::Pull0Keyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
 
-    CHECK(lexUnconnectedDrive("`unconnected_drive asdf") == TokenKind::Unknown);
-    CHECK(!diagnostics.empty());
+    {
+        auto [token, diagnostics] = lexUnconnectedDrive("`unconnected_drive pull1");
+        CHECK(token == TokenKind::Pull1Keyword);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexUnconnectedDrive("`nounconnected_drive");
+        CHECK(token == TokenKind::Unknown);
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
+
+    {
+        auto [token, diagnostics] = lexUnconnectedDrive("`unconnected_drive asdf");
+        CHECK(token == TokenKind::Unknown);
+        CHECK(!diagnostics.empty());
+    }
 }
 
 TEST_CASE("macro-defined include file") {
-    auto& text = "`define FILE <include.svh>\n"
-                 "`include `FILE";
-    Token token = lexToken(text);
+    {
+        auto& text = "`define FILE <include.svh>\n"
+                     "`include `FILE";
+        auto [token, diagnostics] = lexToken(text);
 
-    CHECK(token.kind == TokenKind::StringLiteral);
-    CHECK(token.valueText() == "test string");
-    CHECK_DIAGNOSTICS_EMPTY;
+        CHECK(token.kind == TokenKind::StringLiteral);
+        CHECK(token.valueText() == "test string");
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
 
-    auto& text2 = "`define FILE \"include.svh\"\n"
-                  "`include `FILE";
-    token = lexToken(text2);
+    {
+        auto& text2 = "`define FILE \"include.svh\"\n"
+                      "`include `FILE";
+        auto [token, diagnostics] = lexToken(text2);
 
-    CHECK(token.kind == TokenKind::StringLiteral);
-    CHECK(token.valueText() == "test string");
-    CHECK_DIAGNOSTICS_EMPTY;
+        CHECK(token.kind == TokenKind::StringLiteral);
+        CHECK(token.valueText() == "test string");
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
 
-    auto& text3 = "`define FILE(arg) `\"arg`\"\n"
-                  "`include `FILE(include.svh)";
-    token = lexToken(text3);
+    {
+        auto& text3 = "`define FILE(arg) `\"arg`\"\n"
+                      "`include `FILE(include.svh)";
+        auto [token, diagnostics] = lexToken(text3);
 
-    CHECK(token.kind == TokenKind::StringLiteral);
-    CHECK(token.valueText() == "test string");
-    CHECK_DIAGNOSTICS_EMPTY;
+        CHECK(token.kind == TokenKind::StringLiteral);
+        CHECK(token.valueText() == "test string");
+        CHECK_DIAGNOSTICS_EMPTY(diagnostics);
+    }
 
-    auto& text4 = "`define FILE <includesh\n"
-                  "`include `FILE";
-    token = lexToken(text4);
+    {
+        auto& text4 = "`define FILE <includesh\n"
+                      "`include `FILE";
+        auto [token, diagnostics] = lexToken(text4);
 
-    CHECK(!diagnostics.empty());
+        CHECK(!diagnostics.empty());
+    }
 }
 
 TEST_CASE("Preprocessor API") {
@@ -1360,7 +1449,7 @@ TEST_CASE("Preprocessor API") {
     Bag options;
     options.set(ppOptions);
 
-    Preprocessor pp(getSourceManager(), alloc, diagnostics, options);
+    Preprocessor pp(getSourceManager(), options);
     CHECK(!pp.isDefined("FOO"));
     CHECK(pp.isDefined("__LINE__"));
     CHECK(!pp.undefine("FOO"));
@@ -1381,7 +1470,7 @@ TEST_CASE("Undef builtin") {
 `undef __slang__
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::UndefineBuiltinDirective);
 }
@@ -1391,7 +1480,7 @@ TEST_CASE("Trying to redefine directive") {
 `define timescale
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::InvalidMacroName);
 }
@@ -1401,7 +1490,7 @@ TEST_CASE("Trying to redefine built-in macro") {
 `define __slang__
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::InvalidMacroName);
 }
@@ -1411,7 +1500,7 @@ TEST_CASE("Bad define directive") {
 `define
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::ExpectedIdentifier);
 }
@@ -1422,8 +1511,8 @@ TEST_CASE("Redefine macro -- same body") {
 `define FOO(x, y     = 1+1) asdf bar   baz
 )";
 
-    preprocess(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = preprocess(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Redefine macro -- different bodies") {
@@ -1440,7 +1529,7 @@ TEST_CASE("Redefine macro -- different bodies") {
 `define FOO asdf /**/ baz
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 9);
     for (int i = 0; i < 9; i++) {
         CHECK(diagnostics[i].code == diag::RedefiningMacro);
@@ -1453,7 +1542,7 @@ TEST_CASE("Macro stringify missing quote") {
 `FOO(1)
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::ExpectedMacroStringifyEnd);
 }
@@ -1470,7 +1559,7 @@ TEST_CASE("Pragma expressions") {
 `pragma resetall
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == "\n");
 
     for (auto& diag : diagnostics)
@@ -1505,9 +1594,9 @@ TEST_CASE("Pragma expressions -- errors") {
 `pragma protect end
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
 
-    std::string result = "\n" + reportGlobalDiags();
+    std::string result = "\n" + reportGlobalDiags(diagnostics);
     CHECK(result == R"(
 source:2:1: error: expected pragma name
 `pragma
@@ -1573,7 +1662,7 @@ TEST_CASE("Pragma diagnostic errors") {
 `pragma diagnostic ignore=foo
 )";
 
-    preprocess(text);
+    auto [_, diagnostics] = preprocess(text);
 
     REQUIRE(diagnostics.size() == 6);
     CHECK(diagnostics[0].code == diag::ExpectedDiagPragmaArg);
@@ -1590,7 +1679,7 @@ TEST_CASE("Unknown function-like macro") {
 bar
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == "\nbar\n");
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::UnknownDirective);
@@ -1604,8 +1693,8 @@ endmodule
 `endcelldefine
 )";
 
-    preprocess(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = preprocess(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Non-macro replacement with backtick -- crash regress") {
@@ -1615,7 +1704,7 @@ TEST_CASE("Non-macro replacement with backtick -- crash regress") {
 `FOO(`BAR)
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == "\n,\n");
 
     REQUIRE(diagnostics.size() == 1);
@@ -1631,7 +1720,7 @@ TEST_CASE("Macro concat -- whitespace bug") {
 `B(x)
 )";
 
-    std::string result = preprocess(text);
+    auto [result, _] = preprocess(text);
     CHECK(result == "\nx port_width\n");
 }
 
@@ -1653,7 +1742,7 @@ module m;
 endmodule
 )";
 
-    std::string result = preprocess(text);
+    auto [result, _] = preprocess(text);
     CHECK(result == R"(
 module m;
   logic q, d, clk, rst;
@@ -1693,9 +1782,9 @@ module m;
 endmodule
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Macro named with keyword") {
@@ -1708,9 +1797,9 @@ TEST_CASE("Macro named with keyword") {
 const
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == expected);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Preproc stringify assertion regress GH #451") {
@@ -1738,7 +1827,7 @@ module top;
 endmodule
 )";
 
-    std::string result = preprocess(text);
+    auto [result, _] = preprocess(text);
     CHECK(result == R"(
 module mod(input logic sig);
 endmodule
@@ -1772,7 +1861,7 @@ module m;
 endmodule
 )";
 
-    std::string result = preprocess(text);
+    auto [result, _] = preprocess(text);
     CHECK(result == R"(
 module m;
     initial begin
@@ -1802,7 +1891,7 @@ module top #(
 endmodule
 )";
 
-    std::string result = preprocess(text);
+    auto [result, _] = preprocess(text);
     CHECK(result == R"(
 module top #(
     int unsigned PARAM = 0
@@ -1838,7 +1927,7 @@ module m;
 endmodule
 )";
 
-    std::string result = preprocess(text);
+    auto [result, diagnostics] = preprocess(text);
     CHECK(result == R"(
     
      
@@ -1874,7 +1963,7 @@ module m;
 endmodule
 )a";
 
-    std::string result = preprocess(text);
+    auto [result, _] = preprocess(text);
     CHECK(result == expected);
 
     auto tree = SyntaxTree::fromText(text);

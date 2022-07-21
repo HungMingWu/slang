@@ -17,6 +17,7 @@ namespace slang {
 class SourceManager;
 class SyntaxNode;
 struct ParserMetadata;
+class Preprocessor;
 struct SourceBuffer;
 
 /// The SyntaxTree is the easiest way to interface with the lexer / preprocessor /
@@ -77,6 +78,17 @@ public:
                                                   SourceManager& sourceManager,
                                                   const Bag& options = {});
 
+    /// Creates a syntax tree from an already loaded source buffer.
+    /// @a buffer is the loaded source buffer.
+    /// @a sourceManager is the manager that owns the buffer.
+    /// @a options is an optional bag of lexer, preprocessor, and parser options.
+    /// @a preprocessor is an shared preprocessor
+    /// @return the created and parsed syntax tree.
+    static std::shared_ptr<SyntaxTree> fromBuffer(const SourceBuffer& buffer,
+                                                  SourceManager& sourceManager,
+                                                  const Bag& options,
+                                                  Preprocessor& preprocessor);
+
     /// Creates a syntax tree by concatenating several loaded source buffers.
     /// @a buffers is the list of buffers that should be concatenated to form
     /// the compilation unit to parse.
@@ -86,6 +98,18 @@ public:
     static std::shared_ptr<SyntaxTree> fromBuffers(span<const SourceBuffer> buffers,
                                                    SourceManager& sourceManager,
                                                    const Bag& options = {});
+
+    /// Creates a syntax tree by concatenating several loaded source buffers.
+    /// @a buffers is the list of buffers that should be concatenated to form
+    /// the compilation unit to parse.
+    /// @a sourceManager is the manager that owns the buffers.
+    /// @a options is an optional bag of lexer, preprocessor, and parser options.
+    /// @a preprocessor is an shared preprocessor
+    /// @return the created and parsed syntax tree.
+    static std::shared_ptr<SyntaxTree> fromBuffers(span<const SourceBuffer> buffers,
+                                                   SourceManager& sourceManager,
+                                                   const Bag& options,
+                                                   Preprocessor& preprocessor);
 
     /// Gets any diagnostics generated while parsing.
     Diagnostics& diagnostics() { return diagnosticsBuffer; }
@@ -131,6 +155,10 @@ private:
                                               span<const SourceBuffer> source, const Bag& options,
                                               bool guess);
 
+    static std::shared_ptr<SyntaxTree> create(SourceManager& sourceManager,
+                                              span<const SourceBuffer> source, const Bag& options,
+                                              Preprocessor& preprocessor,
+                                              bool guess);
     SyntaxNode* rootNode;
     SourceManager& sourceMan;
     BumpAllocator alloc;

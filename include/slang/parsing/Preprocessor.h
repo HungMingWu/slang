@@ -54,7 +54,7 @@ struct PreprocessorOptions {
 /// of tokens to consume.
 class Preprocessor {
 public:
-    Preprocessor(SourceManager& sourceManager, BumpAllocator& alloc, Diagnostics& diagnostics,
+    Preprocessor(SourceManager& sourceManager,
                  const Bag& options = {});
 
     /// Gets the next token in the stream, after applying preprocessor rules.
@@ -120,8 +120,10 @@ public:
     KeywordVersion getCurrentKeywordVersion() const { return keywordVersionStack.back(); }
 
     SourceManager& getSourceManager() const { return sourceManager; }
-    BumpAllocator& getAllocator() const { return alloc; }
-    Diagnostics& getDiagnostics() const { return diagnostics; }
+    BumpAllocator& getAllocator() & { return alloc; }
+    BumpAllocator getAllocator() && { return std::exchange(alloc, BumpAllocator{}); }
+    Diagnostics& getDiagnostics() & { return diagnostics; }
+    Diagnostics getDiagnostics() && { return std::move(diagnostics); }
 
     /// Gets all macros that have been defined thus far in the preprocessor.
     std::vector<const DefineDirectiveSyntax*> getDefinedMacros() const;
@@ -305,8 +307,8 @@ private:
     };
 
     SourceManager& sourceManager;
-    BumpAllocator& alloc;
-    Diagnostics& diagnostics;
+    BumpAllocator alloc;
+    Diagnostics diagnostics;
     PreprocessorOptions options;
     LexerOptions lexerOptions;
 

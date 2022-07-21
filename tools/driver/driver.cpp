@@ -47,9 +47,7 @@ void writeToFile(string_view fileName, string_view contents);
 bool runPreprocessor(SourceManager& sourceManager, const Bag& options,
                      const std::vector<SourceBuffer>& buffers, bool includeComments,
                      bool includeDirectives) {
-    BumpAllocator alloc;
-    Diagnostics diagnostics;
-    Preprocessor preprocessor(sourceManager, alloc, diagnostics, options);
+    Preprocessor preprocessor(sourceManager, options);
 
     for (auto it = buffers.rbegin(); it != buffers.rend(); it++)
         preprocessor.pushSource(*it);
@@ -66,9 +64,9 @@ bool runPreprocessor(SourceManager& sourceManager, const Bag& options,
     }
 
     // Only print diagnostics if actual errors occurred.
-    for (auto& diag : diagnostics) {
+    for (auto& diag : preprocessor.getDiagnostics()) {
         if (diag.isError()) {
-            OS::printE("{}", DiagnosticEngine::reportAll(sourceManager, diagnostics));
+            OS::printE("{}", DiagnosticEngine::reportAll(sourceManager, preprocessor.getDiagnostics()));
             return false;
         }
     }
@@ -79,9 +77,7 @@ bool runPreprocessor(SourceManager& sourceManager, const Bag& options,
 
 void printMacros(SourceManager& sourceManager, const Bag& options,
                  const std::vector<SourceBuffer>& buffers) {
-    BumpAllocator alloc;
-    Diagnostics diagnostics;
-    Preprocessor preprocessor(sourceManager, alloc, diagnostics, options);
+    Preprocessor preprocessor(sourceManager, options);
 
     for (auto it = buffers.rbegin(); it != buffers.rend(); it++)
         preprocessor.pushSource(*it);
@@ -282,6 +278,151 @@ bool loadAllSources(Compilation& compilation, SourceManager& sourceManager,
 
             if (buffer) {
                 auto tree = SyntaxTree::fromBuffer(buffer, sourceManager, options);
+                tree->isLibrary = true;
+                compilation.addSyntaxTree(tree);
+
+                addKnownNames(tree);
+                findMissingNames(tree, nextMissingNames);
+            }
+        }
+
+        if (nextMissingNames.empty())
+            break;
+
+        missingNames = std::move(nextMissingNames);
+        nextMissingNames.clear();
+    }
+
+    return ok;
+}
+
+bool loadAllSources_with_preprocessor(Compilation& compilation, SourceManager& sourceManager,
+                    const std::vector<SourceBuffer>& buffers, const Bag& options, bool singleUnit,
+                    bool onlyLint, const std::vector<std::string>& libraryFiles,
+                    const std::vector<std::string>& libDirs,
+                    const std::vector<std::string>& libExts) {
+    Preprocessor preprocessor(sourceManager, options);
+    if (singleUnit) {
+        auto tree = SyntaxTree::fromBuffers(buffers, sourceManager, options, preprocessor);
+        if (onlyLint)
+            tree->isLibrary = true;
+
+        compilation.addSyntaxTree(tree);
+    }
+    else {
+        for (const SourceBuffer& buffer : buffers) {
+            auto tree = SyntaxTree::fromBuffer(buffer, sourceManager, options, preprocessor);
+            if (onlyLint)
+                tree->isLibrary = true;
+
+            compilation.addSyntaxTree(tree);
+        }
+    }
+
+    bool ok = true;
+    for (auto& file : libraryFiles) {
+        SourceBuffer buffer = readSource(sourceManager, file);
+        if (!buffer) {
+            ok = false;
+            continue;
+        }
+
+        auto tree = SyntaxTree::fromBuffer(buffer, sourceManager, options, preprocessor);
+        tree->isLibrary = true;
+        compilation.addSyntaxTree(tree);
+    }
+
+    if (libDirs.empty())
+        return ok;
+
+    std::vector<fs::path> directories;
+    directories.reserve(libDirs.size());
+    for (auto& dir : libDirs)
+        directories.emplace_back(widen(dir));
+
+    flat_hash_set<string_view> uniqueExtensions;
+    uniqueExtensions.emplace(".v"sv);
+    uniqueExtensions.emplace(".sv"sv);
+    for (auto& ext : libExts)
+        uniqueExtensions.emplace(ext);
+
+    std::vector<fs::path> extensions;
+    for (auto ext : uniqueExtensions)
+        extensions.emplace_back(widen(ext));
+
+    // If library directories are specified, see if we have any unknown instantiations
+    // or package names for which we should search for additional source files to load.
+    flat_hash_set<string_view> knownNames;
+    auto addKnownNames = [&](const std::shared_ptr<SyntaxTree>& tree) {
+        auto& meta = tree->getMetadata();
+        for (auto& [n, _] : meta.nodeMap) {
+            auto decl = &n->as<ModuleDeclarationSyntax>();
+            string_view name = decl->header->name.valueText();
+            if (!name.empty())
+                knownNames.emplace(name);
+        }
+
+        for (auto classDecl : meta.classDecls) {
+            string_view name = classDecl->name.valueText();
+            if (!name.empty())
+                knownNames.emplace(name);
+        }
+    };
+
+    auto findMissingNames = [&](const std::shared_ptr<SyntaxTree>& tree,
+                                flat_hash_set<string_view>& missing) {
+        auto& meta = tree->getMetadata();
+        for (auto name : meta.globalInstances) {
+            if (knownNames.find(name) == knownNames.end())
+                missing.emplace(name);
+        }
+
+        for (auto idName : meta.classPackageNames) {
+            string_view name = idName->identifier.valueText();
+            if (!name.empty() && knownNames.find(name) == knownNames.end())
+                missing.emplace(name);
+        }
+
+        for (auto importDecl : meta.packageImports) {
+            for (auto importItem : importDecl->items) {
+                string_view name = importItem->package.valueText();
+                if (!name.empty() && knownNames.find(name) == knownNames.end())
+                    missing.emplace(name);
+            }
+        }
+    };
+
+    for (auto& tree : compilation.getSyntaxTrees())
+        addKnownNames(tree);
+
+    flat_hash_set<string_view> missingNames;
+    for (auto& tree : compilation.getSyntaxTrees())
+        findMissingNames(tree, missingNames);
+
+    // Keep loading new files as long as we are making forward progress.
+    flat_hash_set<string_view> nextMissingNames;
+    while (true) {
+        for (auto name : missingNames) {
+            SourceBuffer buffer;
+            for (auto& dir : directories) {
+                fs::path path(dir);
+                path /= name;
+
+                for (auto& ext : extensions) {
+                    path.replace_extension(ext);
+                    if (!sourceManager.isCached(path)) {
+                        buffer = sourceManager.readSource(path);
+                        if (buffer)
+                            break;
+                    }
+                }
+
+                if (buffer)
+                    break;
+            }
+
+            if (buffer) {
+                auto tree = SyntaxTree::fromBuffer(buffer, sourceManager, options, preprocessor);
                 tree->isLibrary = true;
                 compilation.addSyntaxTree(tree);
 
@@ -601,6 +742,11 @@ int driverMain(int argc, TArgs argv, bool suppressColorsStdout, bool suppressCol
     cmdLine.add("--single-unit", singleUnit, "Treat all input files as a single compilation unit");
     cmdLine.setPositional(sourceFiles, "files", /* isFileName */ true);
 
+    // Shared Preproceesor
+    optional<bool> sharedPreprocessor;
+    cmdLine.add("--shared-preprocessor", sharedPreprocessor,
+                "Treat all input files use same preprocessor");
+
     std::vector<std::string> libraryFiles;
     cmdLine.add("-v", libraryFiles,
                 "One or more library files, which are separate compilation units "
@@ -818,6 +964,9 @@ int driverMain(int argc, TArgs argv, bool suppressColorsStdout, bool suppressCol
         else {
             Compilation compilation(options);
             anyErrors =
+                (sharedPreprocessor) ?
+                !loadAllSources_with_preprocessor(compilation, sourceManager, buffers, options, singleUnit == true,
+                                  onlyLint == true, libraryFiles, libDirs, libExts) :
                 !loadAllSources(compilation, sourceManager, buffers, options, singleUnit == true,
                                 onlyLint == true, libraryFiles, libDirs, libExts);
 

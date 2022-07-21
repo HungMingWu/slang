@@ -4,18 +4,18 @@
 
 TEST_CASE("If statement") {
     auto& text = "if (foo && bar &&& baz) ; else \n;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ConditionalStatement);
     CHECK(stmt.toString() == text);
     CHECK(stmt.as<ConditionalStatementSyntax>().predicate->conditions[0]->expr->kind ==
           SyntaxKind::LogicalAndExpression);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("If statement -- missing semicolon") {
     auto& text = "begin if (foo) end";
-    parseStatement(text);
+    auto [_, diagnostics] = parseStatement(text);
 
     REQUIRE(diagnostics.size() == 1);
     CHECK(diagnostics[0].code == diag::ExpectedStatement);
@@ -23,110 +23,110 @@ TEST_CASE("If statement -- missing semicolon") {
 
 TEST_CASE("Case statement (normal)") {
     auto& text = "unique case (foo) 3'd01: ; 3+9, foo: ; default; endcase";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::CaseStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Case statement (pattern)") {
     auto& text = "priority casez (foo) matches .foo &&& bar: ; default; endcase";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::CaseStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Case statement (range)") {
     auto& text = "casex (foo) inside 3, [4:2], [99:100]: ; default; endcase";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::CaseStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Loop statements") {
     auto& text = "while (foo) \n;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::LoopStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Do while statement") {
     auto& text = "do ; while (foo) ;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::DoWhileStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Foreach statement") {
     auto& text = "foreach (a::b[,i,,j,]) begin end";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ForeachLoopStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Forever statement") {
     auto& text = "forever \n;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ForeverStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Return statement") {
     auto& text = "return foobar;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ReturnStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Jump statements") {
     auto& text = "break;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::JumpStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Disable statement") {
     auto& text = "disable blah::foobar;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::DisableStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Disable fork statement") {
     auto& text = "disable fork;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::DisableForkStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 void testTimingControl(string_view text, SyntaxKind kind) {
-    auto& stmt = parseStatement(std::string(text));
+    auto [stmt, diagnostics] = parseStatement(std::string(text));
 
     REQUIRE(stmt.kind == SyntaxKind::TimingControlStatement);
     CHECK(stmt.as<TimingControlStatementSyntax>().timingControl->kind == kind);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Timing control statements") {
@@ -146,12 +146,12 @@ TEST_CASE("Timing control statements") {
 }
 
 void testStatement(string_view text, SyntaxKind kind) {
-    auto& stmt = parseStatement(std::string(text));
+    auto [stmt, diagnostics] = parseStatement(std::string(text));
 
     REQUIRE(stmt.kind == kind);
     CHECK(stmt.toString() == text);
 
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Procedural assign") {
@@ -174,7 +174,7 @@ TEST_CASE("Block statements") {
 
 void parseBlockDeclaration(const std::string& text) {
     auto fullText = "begin " + text + " end";
-    auto& stmt = parseStatement(fullText);
+    auto [stmt, diagnostics] = parseStatement(fullText);
 
     REQUIRE(stmt.kind == SyntaxKind::SequentialBlockStatement);
     CHECK(stmt.toString() == fullText);
@@ -193,52 +193,52 @@ TEST_CASE("Sequential declarations") {
     parseBlockDeclaration("foo::bar#()::blah f;");
     parseBlockDeclaration("struct packed { blah blah; } f;");
     parseBlockDeclaration("enum { blah = 4 } f, h, i;");
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Blocking Event Trigger") {
     auto& text = "-> $root.hierarchy.evt;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::BlockingEventTriggerStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Nonblocking Event Trigger") {
     auto& text = "->> # 3 hierarchy.evt;";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::NonblockingEventTriggerStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Conditional expression inside conditional statement") {
     auto& text = "if (foo ? a : b) begin end";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ConditionalStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Conditional matching statement") {
     auto& text = "if (foo matches bar &&& (baz ? 1 : 0) &&& baz) begin end";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ConditionalStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Conditional matching expression") {
     auto& text = "if (foo matches bar &&& (baz ? 1 : 0) &&& baz ? 1 : 0) begin end";
-    auto& stmt = parseStatement(text);
+    auto [stmt, diagnostics] = parseStatement(text);
 
     REQUIRE(stmt.kind == SyntaxKind::ConditionalStatement);
     CHECK(stmt.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Checker statement parsing") {
@@ -274,8 +274,8 @@ module m(input logic rst, clk, logic en, logic[7:0] in1, in2,
   end
 endmodule : m
 )";
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("randsequence parsing") {
@@ -296,8 +296,8 @@ module rand_sequence1();
   end
 endmodule
 )";
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("randsequence parsing error cases") {
@@ -315,7 +315,7 @@ module rand_sequence1();
   end
 endmodule
 )";
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 5);
     CHECK(diagnostics[0].code == diag::MultipleDefaultCases);

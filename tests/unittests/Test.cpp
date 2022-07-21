@@ -6,6 +6,7 @@
 #include "slang/parsing/Parser.h"
 #include "slang/parsing/Preprocessor.h"
 #include "slang/symbols/CompilationUnitSymbols.h"
+#include "slang/util/ScopeGuard.h"
 #include "slang/text/SourceManager.h"
 
 std::string findTestDir() {
@@ -51,7 +52,7 @@ std::string report(const Diagnostics& diags) {
     return DiagnosticEngine::reportAll(SyntaxTree::getDefaultSourceManager(), diags);
 }
 
-std::string reportGlobalDiags() {
+std::string reportGlobalDiags(const Diagnostics& diagnostics) {
     return DiagnosticEngine::reportAll(getSourceManager(), diagnostics);
 }
 
@@ -59,15 +60,15 @@ std::string to_string(const Diagnostic& diag) {
     return DiagnosticEngine::reportAll(getSourceManager(), span(&diag, 1));
 }
 
-Token lexToken(string_view text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<Token, Diagnostics> lexToken(string_view text) {
+    Preprocessor preprocessor(getSourceManager());
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
     preprocessor.pushSource(text);
 
     Token token = preprocessor.next();
     REQUIRE(token);
-    return token;
+    
+    return { token, std::move(preprocessor).getDiagnostics() };
 }
 
 Token lexRawToken(string_view text) {
@@ -80,66 +81,60 @@ Token lexRawToken(string_view text) {
     return token;
 }
 
-const ModuleDeclarationSyntax& parseModule(const std::string& text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<const ModuleDeclarationSyntax&, Diagnostics> parseModule(const std::string& text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
-    return parser.parseModule();
+    return { parser.parseModule(), std::move(preprocessor).getDiagnostics() };
 }
 
-const ClassDeclarationSyntax& parseClass(const std::string& text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<const ClassDeclarationSyntax&, Diagnostics> parseClass(const std::string& text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
-    return parser.parseClass();
+    return { parser.parseClass(), std::move(preprocessor).getDiagnostics() };
 }
 
-const MemberSyntax& parseMember(const std::string& text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<const MemberSyntax&, Diagnostics> parseMember(const std::string& text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
     MemberSyntax* member = parser.parseSingleMember(SyntaxKind::ModuleDeclaration);
     REQUIRE(member);
-    return *member;
+    return { *member, std::move(preprocessor).getDiagnostics() };
 }
 
-const StatementSyntax& parseStatement(const std::string& text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<const StatementSyntax&, Diagnostics> parseStatement(const std::string& text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
-    return parser.parseStatement();
+    return { parser.parseStatement(), std::move(preprocessor).getDiagnostics() };
 }
 
-const ExpressionSyntax& parseExpression(const std::string& text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<const ExpressionSyntax&, Diagnostics> parseExpression(const std::string& text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
-    return parser.parseExpression();
+    return { parser.parseExpression(), std::move(preprocessor).getDiagnostics() };
 }
 
-const CompilationUnitSyntax& parseCompilationUnit(const std::string& text) {
-    diagnostics.clear();
-
-    Preprocessor preprocessor(getSourceManager(), alloc, diagnostics);
+std::tuple<const CompilationUnitSyntax&, Diagnostics> parseCompilationUnit(const std::string& text) {
+    Preprocessor preprocessor(getSourceManager());
     preprocessor.pushSource(text);
+    ScopeGuard _([&] { alloc.steal(std::move(preprocessor).getAllocator()); });
 
     Parser parser(preprocessor);
-    return parser.parseCompilationUnit();
+    return { parser.parseCompilationUnit(), std::move(preprocessor).getDiagnostics() };
 }
 
 const InstanceSymbol& evalModule(std::shared_ptr<SyntaxTree> syntax, Compilation& compilation) {

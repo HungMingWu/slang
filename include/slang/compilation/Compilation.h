@@ -326,7 +326,7 @@ public:
     /// A convenience method for parsing a name string and turning it into a set
     /// of syntax nodes. This is mostly for testing and API purposes. Errors are
     /// added to the provided diagnostics bag.
-    const NameSyntax& tryParseName(string_view name, Diagnostics& diags);
+    std::tuple<std::reference_wrapper<const NameSyntax>, Diagnostics> tryParseName(string_view name);
 
     /// Creates a new compilation unit within the design that can be modified dynamically,
     /// which is useful in runtime scripting scenarios. Note that this call will succeed

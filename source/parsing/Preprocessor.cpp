@@ -17,10 +17,10 @@ namespace slang {
 
 using LF = LexerFacts;
 
-Preprocessor::Preprocessor(SourceManager& sourceManager, BumpAllocator& alloc,
-                           Diagnostics& diagnostics, const Bag& options_) :
+Preprocessor::Preprocessor(SourceManager& sourceManager,
+                           const Bag& options_) :
     sourceManager(sourceManager),
-    alloc(alloc), diagnostics(diagnostics), options(options_.getOrDefault<PreprocessorOptions>()),
+    options(options_.getOrDefault<PreprocessorOptions>()),
     lexerOptions(options_.getOrDefault<LexerOptions>()), numberParser(diagnostics, alloc) {
 
     keywordVersionStack.push_back(LF::getDefaultKeywordVersion());
@@ -29,7 +29,7 @@ Preprocessor::Preprocessor(SourceManager& sourceManager, BumpAllocator& alloc,
 }
 
 Preprocessor::Preprocessor(const Preprocessor& other) :
-    sourceManager(other.sourceManager), alloc(other.alloc), diagnostics(other.diagnostics),
+    sourceManager(other.sourceManager),
     numberParser(diagnostics, alloc) {
 
     keywordVersionStack.push_back(LF::getDefaultKeywordVersion());

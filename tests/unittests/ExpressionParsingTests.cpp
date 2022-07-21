@@ -8,7 +8,7 @@ using LF = LexerFacts;
 
 TEST_CASE("Empty string") {
     auto& text = "";
-    auto& expr = parseExpression(text);
+    auto [expr, _] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::IdentifierName);
     CHECK(expr.as<IdentifierNameSyntax>().identifier.isMissing());
@@ -16,104 +16,104 @@ TEST_CASE("Empty string") {
 
 TEST_CASE("Name expression") {
     auto& text = "foo";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::IdentifierName);
     CHECK(!expr.as<IdentifierNameSyntax>().identifier.isMissing());
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Parenthesized expression") {
     auto& text = "(foo)";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::ParenthesizedExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("MinTypMax expression") {
     auto& text = "(foo:34+99:baz)";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::ParenthesizedExpression);
     CHECK(expr.as<ParenthesizedExpressionSyntax>().expression->kind ==
           SyntaxKind::MinTypMaxExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("String literal expression") {
     auto& text = "\"asdf\"";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::StringLiteralExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Integer literal expression") {
     auto& text = "34'd56";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::IntegerVectorExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Integer with question") {
     auto& text = "4'b?10?";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::IntegerVectorExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Real literal expression") {
     auto& text = "42.42";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::RealLiteralExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Time literal expression") {
     auto& text = "42ns";
-    auto& expr = parseExpression(text);
+    auto [expr,diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::TimeLiteralExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Null literal expression") {
     auto& text = "null";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::NullLiteralExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Wildcard expression") {
     auto& text = "$";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::WildcardLiteralExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 void testPrefixUnary(TokenKind kind) {
     auto text = std::string(LF::getTokenKindText(kind)) + "a";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxFacts::getUnaryPrefixExpression(kind));
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     auto& us = expr.as<PrefixUnaryExpressionSyntax>();
     CHECK(us.operatorToken.kind == kind);
     CHECK(us.operand->kind == SyntaxKind::IdentifierName);
@@ -137,11 +137,11 @@ TEST_CASE("Unary prefix operators") {
 
 void testPostfixUnary(TokenKind kind) {
     auto text = "a" + std::string(LF::getTokenKindText(kind));
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxFacts::getUnaryPostfixExpression(kind));
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     auto& us = expr.as<PostfixUnaryExpressionSyntax>();
     CHECK(us.operatorToken.kind == kind);
     CHECK(us.operand->kind == SyntaxKind::IdentifierName);
@@ -154,11 +154,11 @@ TEST_CASE("Unary postfix operators") {
 
 void testBinaryOperator(TokenKind kind) {
     auto text = "a " + std::string(LF::getTokenKindText(kind)) + " 4";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxFacts::getBinaryExpression(kind));
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     auto& us = expr.as<BinaryExpressionSyntax>();
     CHECK(us.operatorToken.kind == kind);
     CHECK(us.left->kind == SyntaxKind::IdentifierName);
@@ -211,11 +211,11 @@ TEST_CASE("Binary operators") {
 }
 
 void testScopedName(string_view text) {
-    auto& expr = parseExpression(std::string(text));
+    auto [expr, diagnostics] = parseExpression(std::string(text));
 
     REQUIRE(expr.kind == SyntaxKind::ScopedName);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Scoped identifiers") {
@@ -229,76 +229,76 @@ TEST_CASE("Scoped identifiers") {
 
 TEST_CASE("Class scoped name") {
     auto& text = "blah::foo #(stuff, .thing(3+9))::bar";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::ScopedName);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Empty queue") {
     auto& text = "{}";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::EmptyQueueExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Concatenation") {
     auto& text = "{3+4, foo.bar}";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::ConcatenationExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Concatenation (single)") {
     auto& text = "{3+4}";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::ConcatenationExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Multiple concatenation") {
     auto& text = "{3+4 {foo.bar, 9**22}}";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::MultipleConcatenationExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Streaming concatenation") {
     auto& text = "{<< 3+9 {foo, 24.32 with [3+:4]}}";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::StreamingConcatenationExpression);
     CHECK(expr.as<StreamingConcatenationExpressionSyntax>()
               .expressions[1]
               ->withRange->range->selector->kind == SyntaxKind::AscendingRangeSelect);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Element Access") {
     auto& text = "(foo)[3][9+4]";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::ElementSelectExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 void testElementRange(string_view text, SyntaxKind kind) {
-    auto& expr = parseExpression(std::string(text));
+    auto [expr, diagnostics] = parseExpression(std::string(text));
     REQUIRE(expr.kind == SyntaxKind::ElementSelectExpression);
     CHECK(expr.as<ElementSelectExpressionSyntax>().select->selector->kind == kind);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Element range") {
@@ -309,43 +309,43 @@ TEST_CASE("Element range") {
 
 TEST_CASE("Member Access") {
     auto& text = "(foo).bar";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::MemberAccessExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Invocation expression") {
     auto& text = "foo.bar(5, 6, .param(9))";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::InvocationExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Inside expression") {
     auto& text = "34 inside { 34, [12:12], 19 }";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::InsideExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Tagged union expression") {
     auto& text = "tagged foo";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::TaggedUnionExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Bad argument recovery") {
     auto& text = "foo(]], 3 4,)";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::InvocationExpression);
     CHECK(expr.toString() == "foo(");
@@ -355,10 +355,10 @@ TEST_CASE("Bad argument recovery") {
 TEST_CASE("Conditional expression") {
     // check proper precedence
     auto& text = "foo || bar ? 3 : 4";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     REQUIRE(expr.kind == SyntaxKind::ConditionalExpression);
 
     auto& cond = expr.as<ConditionalExpressionSyntax>();
@@ -369,10 +369,10 @@ TEST_CASE("Conditional expression") {
 TEST_CASE("Conditional expression (pattern matching)") {
     // check proper precedence
     auto& text = "foo matches 34 &&& foo ? 3 : 4";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
     REQUIRE(expr.kind == SyntaxKind::ConditionalExpression);
 
     auto& cond = expr.as<ConditionalExpressionSyntax>();
@@ -479,8 +479,7 @@ module M; localparam foo = (stackDepth == 100) || ((stackDepth == 200) || ((stac
 ((stackDepth == 14717) || ((stackDepth == 14717 || ((stackDepth == 14717);
 )";
 
-    Diagnostics diags;
-    Preprocessor preprocessor(SyntaxTree::getDefaultSourceManager(), alloc, diags);
+    Preprocessor preprocessor(SyntaxTree::getDefaultSourceManager());
     preprocessor.pushSource(string_view(text), "source");
 
     Bag options;
@@ -491,7 +490,7 @@ module M; localparam foo = (stackDepth == 100) || ((stackDepth == 200) || ((stac
     Parser parser(preprocessor, options);
     parser.parseCompilationUnit();
 
-    std::string result = "\n" + report(diags);
+    std::string result = "\n" + report(preprocessor.getDiagnostics());
     CHECK(result == R"(
 source:23:43: error: language constructs are too deeply nested
 ((stackDepth == 11306) || ((stackDepth == 11307) || ((stackDepth == 11308) ||
@@ -500,50 +499,50 @@ source:23:43: error: language constructs are too deeply nested
 }
 
 TEST_CASE("Arithmetic expressions") {
-    auto& expr = parseExpression("3 + 4 / 2 * 9");
+    auto [expr, diagnostics] = parseExpression("3 + 4 / 2 * 9");
     REQUIRE(expr.kind == SyntaxKind::AddExpression);
     CHECK(expr.as<BinaryExpressionSyntax>().right->kind == SyntaxKind::MultiplyExpression);
 }
 
 TEST_CASE("Simple class new expression") {
     auto& text = "new";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::NewClassExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Scoped class new expression") {
     auto& text = "A::B#(3, \"foo\", bar[baz])::new";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::NewClassExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("New class with args") {
     auto& text = "A::B#(3, \"foo\", bar[baz])::new (a, , c)";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::NewClassExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Copy class expression") {
     auto& text = "new foo";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::CopyClassExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Scoped copy class expression -- error") {
     auto& text = "A::B::new foo";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::CopyClassExpression);
     CHECK(expr.toString() == text);
@@ -553,27 +552,27 @@ TEST_CASE("Scoped copy class expression -- error") {
 
 TEST_CASE("New array expression parsing") {
     auto& text = "new [3]";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::NewArrayExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("New array expression with initializer") {
     auto& text = "new [3] (foo[bar])";
-    auto& expr = parseExpression(text);
+    auto [expr, diagnostics] = parseExpression(text);
 
     REQUIRE(expr.kind == SyntaxKind::NewArrayExpression);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Error at EOF") {
     auto& text = "'d\n";
-    parseExpression(text);
+    auto [_, diagnostics] = parseExpression(text);
 
-    std::string result = "\n" + reportGlobalDiags();
+    std::string result = "\n" + reportGlobalDiags(diagnostics);
     CHECK(result == R"(
 source:1:3: error: expected vector literal digits
 'd
@@ -592,11 +591,11 @@ TEST_CASE("List parsing recovery") {
 }
 
 void testExpr(string_view text, SyntaxKind kind) {
-    auto& expr = parseExpression(std::string(text));
+    auto [expr, diagnostics] = parseExpression(std::string(text));
 
     REQUIRE(expr.kind == kind);
     CHECK(expr.toString() == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 void testMethodExpr(string_view text) {
@@ -682,8 +681,8 @@ module m;
   endsequence
 endmodule
 )";
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Property expression parsing") {
@@ -710,8 +709,8 @@ module m;
   endproperty
 endmodule
 )";
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Invalid delay value expression parsing") {
@@ -725,7 +724,7 @@ module m;
 endmodule
 )";
 
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::InvalidDelayValue);
@@ -760,8 +759,8 @@ module m;
     end
 endmodule
 )";
-    parseCompilationUnit(text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    auto [_, diagnostics] = parseCompilationUnit(text);
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }
 
 TEST_CASE("Dist expression parsing in disallowed contexts") {
@@ -777,7 +776,7 @@ class C;
     int i = 1 + a dist {0 := 1, [1:15] := 1};
 endclass
 )";
-    parseCompilationUnit(text);
+    auto [_, diagnostics] = parseCompilationUnit(text);
 
     REQUIRE(diagnostics.size() == 2);
     CHECK(diagnostics[0].code == diag::NonstandardDist);
@@ -800,8 +799,8 @@ initial begin
 end
 endmodule
 )";
-    auto& syntax = parseCompilationUnit(text);
+    auto [syntax, diagnostics] = parseCompilationUnit(text);
     auto result = SyntaxPrinter().setSquashNewlines(false).print(syntax).str();
     CHECK(result == text);
-    CHECK_DIAGNOSTICS_EMPTY;
+    CHECK_DIAGNOSTICS_EMPTY(diagnostics);
 }

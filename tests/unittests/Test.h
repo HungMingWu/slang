@@ -30,11 +30,11 @@ struct StatementSyntax;
 
 using namespace slang;
 
-#define CHECK_DIAGNOSTICS_EMPTY               \
+#define CHECK_DIAGNOSTICS_EMPTY(diagnostics)  \
     do {                                      \
         diagnostics.sort(getSourceManager()); \
         if (!diagnostics.empty())             \
-            FAIL_CHECK(reportGlobalDiags());  \
+            FAIL_CHECK(reportGlobalDiags(diagnostics));  \
     } while (0)
 
 #define NO_COMPILATION_ERRORS                          \
@@ -60,18 +60,18 @@ SourceManager& getSourceManager();
 bool withinUlp(double a, double b);
 
 std::string report(const Diagnostics& diags);
-std::string reportGlobalDiags();
+std::string reportGlobalDiags(const Diagnostics& diagnostics);
 std::string to_string(const Diagnostic& diag);
 
-Token lexToken(string_view text);
+std::tuple<Token, Diagnostics> lexToken(string_view text);
 Token lexRawToken(string_view text);
 
-const ModuleDeclarationSyntax& parseModule(const std::string& text);
-const ClassDeclarationSyntax& parseClass(const std::string& text);
-const MemberSyntax& parseMember(const std::string& text);
-const StatementSyntax& parseStatement(const std::string& text);
-const ExpressionSyntax& parseExpression(const std::string& text);
-const CompilationUnitSyntax& parseCompilationUnit(const std::string& text);
+std::tuple<const ModuleDeclarationSyntax&, Diagnostics> parseModule(const std::string& text);
+std::tuple<const ClassDeclarationSyntax&, Diagnostics> parseClass(const std::string& text);
+std::tuple<const MemberSyntax&, Diagnostics> parseMember(const std::string& text);
+std::tuple<const StatementSyntax&, Diagnostics> parseStatement(const std::string& text);
+std::tuple<const ExpressionSyntax&, Diagnostics> parseExpression(const std::string& text);
+std::tuple<const CompilationUnitSyntax&, Diagnostics> parseCompilationUnit(const std::string& text);
 const InstanceSymbol& evalModule(std::shared_ptr<SyntaxTree> syntax, Compilation& compilation);
 
 class LogicExactlyEqualMatcher : public Catch::Matchers::MatcherGenericBase {
