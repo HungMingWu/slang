@@ -261,6 +261,8 @@ if(SLANG_INCLUDE_TOOLS)
   add_subdirectory(tools)
 endif()
 
+add_subdirectory(wip)
+
 if(SLANG_INCLUDE_TESTS)
   include(CTest)
   add_subdirectory(external/Catch2)
