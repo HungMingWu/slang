@@ -8,8 +8,6 @@
 //------------------------------------------------------------------------------
 #include "slang/driver/Driver.h"
 
-#include <fmt/color.h>
-
 #include "slang/ast/Compilation.h"
 #include "slang/ast/symbols/CompilationUnitSymbols.h"
 #include "slang/ast/symbols/InstanceSymbols.h"
@@ -54,7 +52,7 @@ void Driver::addStandardArgs() {
         "-I,--include-directory,+incdir",
         [this](std::string_view value) {
             if (auto ec = sourceManager.addUserDirectories(value)) {
-                printWarning(fmt::format("include directory '{}': {}", value, ec.message()));
+                printWarning(std::format("include directory '{}': {}", value, ec.message()));
             }
             return "";
         },
@@ -64,7 +62,7 @@ void Driver::addStandardArgs() {
         "--isystem",
         [this](std::string_view value) {
             if (auto ec = sourceManager.addSystemDirectories(value)) {
-                printWarning(fmt::format("system include directory '{}': {}", value, ec.message()));
+                printWarning(std::format("system include directory '{}': {}", value, ec.message()));
             }
             return "";
         },
@@ -232,7 +230,7 @@ void Driver::addStandardArgs() {
         "--suppress-warnings",
         [this](std::string_view value) {
             if (auto ec = diagEngine.addIgnorePaths(value))
-                printWarning(fmt::format("--suppress-warnings path '{}': {}", value, ec.message()));
+                printWarning(std::format("--suppress-warnings path '{}': {}", value, ec.message()));
             return "";
         },
         "One or more paths in which to suppress warnings", "<file-pattern>[,...]",
@@ -243,7 +241,7 @@ void Driver::addStandardArgs() {
         [this](std::string_view value) {
             if (auto ec = diagEngine.addIgnoreMacroPaths(value)) {
                 printWarning(
-                    fmt::format("--suppress-macro-warnings path '{}': {}", value, ec.message()));
+                    std::format("--suppress-macro-warnings path '{}': {}", value, ec.message()));
             }
             return "";
         },
@@ -342,7 +340,7 @@ void Driver::addStandardArgs() {
                                             CommandLine::ParseOptions parseOptions) {
     if (!cmdLine.parse(argList, parseOptions)) {
         for (auto& err : cmdLine.getErrors())
-            OS::printE(fmt::format("{}\n", err));
+            OS::printE(std::format("{}\n", err));
         return false;
     }
     return !anyFailedLoads;
@@ -350,7 +348,7 @@ void Driver::addStandardArgs() {
 
 bool Driver::processCommandFiles(std::string_view pattern, bool makeRelative, bool separateUnit) {
     auto onError = [this](const auto& name, std::error_code ec) {
-        printError(fmt::format("command file '{}': {}", name, ec.message()));
+        printError(std::format("command file '{}': {}", name, ec.message()));
         anyFailedLoads = true;
         return false;
     };
@@ -368,7 +366,7 @@ bool Driver::processCommandFiles(std::string_view pattern, bool makeRelative, bo
 
         if (!activeCommandFiles.insert(path).second) {
             printError(
-                fmt::format("command file '{}' includes itself recursively", getU8Str(path)));
+                std::format("command file '{}' includes itself recursively", getU8Str(path)));
             anyFailedLoads = true;
             return false;
         }
@@ -431,7 +429,7 @@ bool Driver::processOptions() {
             languageVersion = LanguageVersion::v1800_2023;
         else {
             printError(
-                fmt::format("invalid value for --std option: '{}'", *options.languageVersion));
+                std::format("invalid value for --std option: '{}'", *options.languageVersion));
             return false;
         }
     }
@@ -455,21 +453,21 @@ bool Driver::processOptions() {
             }
         }
         else {
-            printError(fmt::format("invalid value for compat option: '{}'", *options.compat));
+            printError(std::format("invalid value for compat option: '{}'", *options.compat));
             return false;
         }
     }
 
     if (options.minTypMax.has_value() && options.minTypMax != "min" && options.minTypMax != "typ" &&
         options.minTypMax != "max") {
-        printError(fmt::format("invalid value for timing option: '{}'", *options.minTypMax));
+        printError(std::format("invalid value for timing option: '{}'", *options.minTypMax));
         return false;
     }
 
     if (options.diagHierarchy.has_value() && options.diagHierarchy != "always" &&
         options.diagHierarchy != "never" && options.diagHierarchy != "auto") {
         printError(
-            fmt::format("invalid value for diag-hierarchy option: '{}'", *options.diagHierarchy));
+            std::format("invalid value for diag-hierarchy option: '{}'", *options.diagHierarchy));
         return false;
     }
 
@@ -479,7 +477,7 @@ bool Driver::processOptions() {
     }
 
     if (options.timeScale.has_value() && !TimeScale::fromString(*options.timeScale)) {
-        printError(fmt::format("invalid value for time scale option: '{}'", *options.timeScale));
+        printError(std::format("invalid value for time scale option: '{}'", *options.timeScale));
         return false;
     }
 
@@ -620,12 +618,12 @@ bool Driver::runPreprocessor(bool includeComments, bool includeDirectives, bool 
     // Only print diagnostics if actual errors occurred.
     for (auto& diag : diagnostics) {
         if (diag.isError()) {
-            OS::printE(fmt::format("{}", DiagnosticEngine::reportAll(sourceManager, diagnostics)));
+            OS::printE(std::format("{}", DiagnosticEngine::reportAll(sourceManager, diagnostics)));
             return false;
         }
     }
 
-    OS::print(fmt::format("{}\n", output.str()));
+    OS::print(std::format("{}\n", output.str()));
     return true;
 }
 
@@ -662,7 +660,7 @@ void Driver::reportMacros() {
 
         printer.print(macro->body);
 
-        OS::print(fmt::format("{}\n", printer.str()));
+        OS::print(std::format("{}\n", printer.str()));
     }
 }
 
@@ -801,7 +799,7 @@ bool Driver::reportParseDiags() {
     for (auto& diag : diags)
         diagEngine.issue(diag);
 
-    OS::printE(fmt::format("{}", diagClient->getString()));
+    OS::printE(std::format("{}", diagClient->getString()));
     return diagEngine.getNumErrors() == 0;
 }
 
@@ -811,7 +809,7 @@ bool Driver::reportCompilation(Compilation& compilation, bool quiet) {
         if (!topInstances.empty()) {
             OS::print(fg(diagClient->warningColor), "Top level design units:\n");
             for (auto inst : topInstances)
-                OS::print(fmt::format("    {}\n", inst->name));
+                OS::print(std::format("    {}\n", inst->name));
             OS::print("\n");
         }
     }
@@ -822,7 +820,7 @@ bool Driver::reportCompilation(Compilation& compilation, bool quiet) {
     bool succeeded = diagEngine.getNumErrors() == 0;
 
     std::string diagStr = diagClient->getString();
-    OS::printE(fmt::format("{}", diagStr));
+    OS::printE(std::format("{}", diagStr));
 
     if (!quiet) {
         if (diagStr.size() > 1)
@@ -833,7 +831,7 @@ bool Driver::reportCompilation(Compilation& compilation, bool quiet) {
         else
             OS::print(fg(diagClient->errorColor), "Build failed: ");
 
-        OS::print(fmt::format("{} error{}, {} warning{}\n", diagEngine.getNumErrors(),
+        OS::print(std::format("{} error{}, {} warning{}\n", diagEngine.getNumErrors(),
                               diagEngine.getNumErrors() == 1 ? "" : "s",
                               diagEngine.getNumWarnings(),
                               diagEngine.getNumWarnings() == 1 ? "" : "s"));
@@ -885,7 +883,7 @@ bool Driver::parseUnitListing(std::string_view text) {
 
     if (!unitCmdLine.parse(text, parseOpts)) {
         for (auto& err : unitCmdLine.getErrors())
-            OS::printE(fmt::format("{}\n", err));
+            OS::printE(std::format("{}\n", err));
         return false;
     }
 

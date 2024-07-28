@@ -9,7 +9,7 @@
 
 #include "SVIntHelpers.h"
 #include <cmath>
-#include <fmt/core.h>
+#include <format>
 #include <ostream>
 #include <stdexcept>
 
@@ -137,7 +137,7 @@ SVInt SVInt::fromString(std::string_view str) {
         }
 
         if (!literalBaseFromChar(*c, base))
-            SLANG_THROW(std::invalid_argument(fmt::format("Unknown base specifier '{}'", *c)));
+            SLANG_THROW(std::invalid_argument(std::format("Unknown base specifier '{}'", *c)));
 
         c++;
         if (c == end)
@@ -228,7 +228,7 @@ SVInt SVInt::fromDigits(bitwidth_t bits, LiteralBase base, bool isSigned, bool a
             val += d.value;
             if (d.value >= radix) {
                 SLANG_THROW(std::invalid_argument(
-                    fmt::format("Digit {} too large for radix {}", d.value, radix)));
+                    std::format("Digit {} too large for radix {}", d.value, radix)));
             }
         }
         return SVInt(bits, val, isSigned);
@@ -267,7 +267,7 @@ SVInt SVInt::fromDecimalDigits(bitwidth_t bits, bool isSigned, std::span<logic_t
         uint8_t v = d->value;
         if (v >= 10) {
             SLANG_THROW(
-                std::invalid_argument(fmt::format("Digit {} too large for radix {}", v, 10)));
+                std::invalid_argument(std::format("Digit {} too large for radix {}", v, 10)));
         }
         d++;
         return v;
@@ -336,7 +336,7 @@ SVInt SVInt::fromPow2Digits(bitwidth_t bits, bool isSigned, bool anyUnknown, uin
         }
         else if (value >= radix) {
             SLANG_THROW(std::invalid_argument(
-                fmt::format("Digit {} too large for radix {}", value, radix)));
+                std::format("Digit {} too large for radix {}", value, radix)));
         }
 
         word |= value << bitPos;

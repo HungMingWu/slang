@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Test.h"
-#include <fmt/core.h>
+#include <format>
 #include <regex>
 
 #include "slang/ast/symbols/CompilationUnitSymbols.h"
@@ -233,7 +233,7 @@ TEST_CASE("Driver single-unit parsing") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}test.sv\" \"{0}test2.sv\" --single-unit --lint-only",
+    auto args = std::format("testfoo \"{0}test.sv\" \"{0}test2.sv\" --single-unit --lint-only",
                             findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
@@ -245,7 +245,7 @@ TEST_CASE("Driver single-unit parsing files with no EOL") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}file_with_no_eol.sv\" "
+    auto args = std::format("testfoo \"{0}file_with_no_eol.sv\" "
                             "\"{0}file_uses_define_in_file_with_no_eol.sv\" --single-unit",
                             findTestDir());
     CHECK(driver.parseCommandLine(args));
@@ -260,7 +260,7 @@ TEST_CASE("Driver parsing with library modules") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format(
+    auto args = std::format(
         "testfoo \"{0}test3.sv\" --libdir \"{0}\"library --libext .qv -Wno-foobar", findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
@@ -289,7 +289,7 @@ TEST_CASE("Driver parsing multiple input files") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}test?.sv\" --single-unit --libraries-inherit-macros -v "
+    auto args = std::format("testfoo \"{0}test?.sv\" --single-unit --libraries-inherit-macros -v "
                             "\"{0}library/libmod.qv\"",
                             findTestDir());
     CHECK(driver.parseCommandLine(args));
@@ -304,7 +304,7 @@ TEST_CASE("Driver full compilation") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}test.sv\"", findTestDir());
+    auto args = std::format("testfoo \"{0}test.sv\"", findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
     CHECK(driver.parseAllSources());
@@ -320,7 +320,7 @@ TEST_CASE("Driver full compilation with defines and param overrides") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format(
+    auto args = std::format(
         "testfoo \"{0}test4.sv\" --top=frob --allow-use-before-declare -DFOOBAR -Gbar=1",
         findTestDir());
     CHECK(driver.parseCommandLine(args));
@@ -339,7 +339,7 @@ TEST_CASE("Driver setting a bunch of compilation options") {
         Driver driver;
         driver.addStandardArgs();
 
-        auto args = fmt::format("testfoo \"{0}test.sv\" -T{1}", findTestDir(), timing);
+        auto args = std::format("testfoo \"{0}test.sv\" -T{1}", findTestDir(), timing);
         args += " --max-include-depth=4 --max-parse-depth=10 --max-lexer-errors=2";
         args += " --max-hierarchy-depth=10 --max-generate-steps=1  --max-constexpr-depth=1";
         args += " --max-constexpr-steps=2 --constexpr-backtrace-limit=4 --max-instance-array=5";
@@ -365,7 +365,7 @@ TEST_CASE("Driver failed compilation") {
     driver.addStandardArgs();
 
     auto args =
-        fmt::format("testfoo \"{0}test4.sv\" --allow-use-before-declare --error-limit=2 --top=baz",
+        std::format("testfoo \"{0}test4.sv\" --allow-use-before-declare --error-limit=2 --top=baz",
                     findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
@@ -383,7 +383,7 @@ TEST_CASE("Driver command files") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo -F \"{0}cmd.f\"", findTestDir());
+    auto args = std::format("testfoo -F \"{0}cmd.f\"", findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
     CHECK(driver.parseAllSources());
@@ -400,7 +400,7 @@ TEST_CASE("Driver command file errors") {
         Driver driver;
         driver.addStandardArgs();
 
-        auto args = fmt::format("testfoo -{} \"{}cmd2.f\"", type, findTestDir());
+        auto args = std::format("testfoo -{} \"{}cmd2.f\"", type, findTestDir());
         CHECK(!driver.parseCommandLine(args));
         CHECK(!driver.processOptions());
     }
@@ -412,7 +412,7 @@ TEST_CASE("Driver unknown command file") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo -F \"asdfasdf\"", findTestDir());
+    auto args = std::format("testfoo -F \"asdfasdf\"", findTestDir());
     CHECK(!driver.parseCommandLine(args));
     CHECK(!driver.processOptions());
     CHECK(stderrContains("error: command file 'asdfasdf':"));
@@ -424,7 +424,7 @@ TEST_CASE("Driver allow defines to be inherited to lib files") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}test3.sv\" --libdir \"{0}\"library --libext .qv --top=qq "
+    auto args = std::format("testfoo \"{0}test3.sv\" --libdir \"{0}\"library --libext .qv --top=qq "
                             "--single-unit --libraries-inherit-macros",
                             findTestDir());
     CHECK(driver.parseCommandLine(args));
@@ -442,7 +442,7 @@ TEST_CASE("Driver command files are processed strictly in order") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}\"test.sv -F \"{0}cmd3.f\"", findTestDir());
+    auto args = std::format("testfoo \"{0}\"test.sv -F \"{0}cmd3.f\"", findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
 
@@ -481,7 +481,7 @@ TEST_CASE("Driver suppress warnings by path") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format("testfoo \"{0}test5.sv\" -Weverything --suppress-warnings \"{0}\"",
+    auto args = std::format("testfoo \"{0}test5.sv\" -Weverything --suppress-warnings \"{0}\"",
                             testDir);
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
@@ -500,7 +500,7 @@ TEST_CASE("Driver suppress macro warnings by path") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format(
+    auto args = std::format(
         "testfoo \"{0}test6.sv\" -Wwidth-trunc --suppress-macro-warnings \"{0}/nested/\"", testDir);
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
@@ -524,7 +524,7 @@ TEST_CASE("Driver library files with explicit name") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format("testfoo \"{0}test6.sv\" --single-unit --libraries-inherit-macros "
+    auto args = std::format("testfoo \"{0}test6.sv\" --single-unit --libraries-inherit-macros "
                             " \"-I{0}/nested\" \"-vlibfoo={0}/library/.../*.sv\"",
                             testDir);
     CHECK(driver.parseCommandLine(args));
@@ -557,7 +557,7 @@ TEST_CASE("Driver load library maps") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format("testfoo \"{0}test6.sv\" --libmap \"{0}/library/lib.map\"", testDir);
+    auto args = std::format("testfoo \"{0}test6.sv\" --libmap \"{0}/library/lib.map\"", testDir);
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
     CHECK(driver.parseAllSources());
@@ -593,7 +593,7 @@ TEST_CASE("Driver library map in compilation") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format("testfoo \"{0}test6.sv\" --libmap \"{0}/library/lib.map\"", testDir);
+    auto args = std::format("testfoo \"{0}test6.sv\" --libmap \"{0}/library/lib.map\"", testDir);
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
     CHECK(driver.parseAllSources());
@@ -611,7 +611,7 @@ TEST_CASE("Driver checking for infinite command file includes") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format("testfoo -F \"{0}infinite.f\"", testDir);
+    auto args = std::format("testfoo -F \"{0}infinite.f\"", testDir);
     CHECK(!driver.parseCommandLine(args));
     CHECK(stderrContains("error: command file "));
     CHECK(stderrContains("includes itself recursively"));
@@ -624,7 +624,7 @@ TEST_CASE("Driver checking for infinite library map includes") {
     driver.addStandardArgs();
 
     auto testDir = findTestDir();
-    auto args = fmt::format("testfoo --libmap \"{0}infinite.map\"", testDir);
+    auto args = std::format("testfoo --libmap \"{0}infinite.map\"", testDir);
     CHECK(driver.parseCommandLine(args));
     CHECK(!driver.processOptions());
     CHECK(stderrContains("error: library map "));
@@ -637,7 +637,7 @@ TEST_CASE("Driver separate unit listing") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}test5.sv\" -C \"{0}unit.f\" -v \"lib2={0}test6.sv\"",
+    auto args = std::format("testfoo \"{0}test5.sv\" -C \"{0}unit.f\" -v \"lib2={0}test6.sv\"",
                             findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());
@@ -673,7 +673,7 @@ TEST_CASE("Driver customize default lib name") {
     Driver driver;
     driver.addStandardArgs();
 
-    auto args = fmt::format("testfoo \"{0}test5.sv\" -v \"blah={0}test6.sv\" --defaultLibName blah",
+    auto args = std::format("testfoo \"{0}test5.sv\" -v \"blah={0}test6.sv\" --defaultLibName blah",
                             findTestDir());
     CHECK(driver.parseCommandLine(args));
     CHECK(driver.processOptions());

@@ -9,7 +9,7 @@
 
 #include "ElabVisitors.h"
 #include "builtins/Builtins.h"
-#include <fmt/core.h>
+#include <format>
 #include <mutex>
 
 #include "slang/ast/ScriptSession.h"
@@ -749,7 +749,7 @@ const DefinitionSymbol* Compilation::getDefinition(const ConfigBlockSymbol& conf
 
     std::string errorName;
     if (!libName.empty())
-        errorName = fmt::format("{}.{}", libName, cellName);
+        errorName = std::format("{}.{}", libName, cellName);
     else
         errorName = cellName;
 
@@ -1107,7 +1107,7 @@ void Compilation::addOutOfBlockDecl(const Scope& scope, const ScopedNameSyntax& 
                                                   std::make_tuple(&syntax, &name, index, false));
 
     if (!inserted && !className.empty() && !declName.empty()) {
-        std::string combined = fmt::format("{}::{}", className, declName);
+        std::string combined = std::format("{}::{}", className, declName);
         auto range = std::get<1>(it->second)->sourceRange();
 
         auto& diag = scope.addDiag(diag::Redefinition, name.sourceRange());

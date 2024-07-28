@@ -71,7 +71,7 @@ void registerSyntax(py::module_& m) {
         .def("getRawText", &Trivia::getRawText)
         .def("getSkippedTokens", &Trivia::getSkippedTokens)
         .def("__repr__", [](const Trivia& self) {
-            return fmt::format("Trivia(TriviaKind.{})", toString(self.kind));
+            return std::format("Trivia(TriviaKind.{})", toString(self.kind));
         });
 
     py::class_<Token>(m, "Token")
@@ -128,7 +128,7 @@ void registerSyntax(py::module_& m) {
         .def("__bool__", &Token::operator bool)
         .def("__repr__",
              [](const Token& self) {
-                 return fmt::format("Token(TokenKind.{})", toString(self.kind));
+                 return std::format("Token(TokenKind.{})", toString(self.kind));
              })
         .def("__str__", &Token::toString);
 
@@ -193,7 +193,7 @@ void registerSyntax(py::module_& m) {
             py::keep_alive<0, 1>())
         .def("__repr__",
              [](const SyntaxNode& self) {
-                 return fmt::format("SyntaxNode(SyntaxKind.{})", toString(self.kind));
+                 return std::format("SyntaxNode(SyntaxKind.{})", toString(self.kind));
              })
         .def("__str__", &SyntaxNode::toString);
 

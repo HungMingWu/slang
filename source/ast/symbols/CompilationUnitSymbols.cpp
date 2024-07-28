@@ -8,7 +8,7 @@
 #include "slang/ast/symbols/CompilationUnitSymbols.h"
 
 #include "ParameterBuilder.h"
-#include <fmt/format.h>
+#include <format>
 
 #include "slang/ast/ASTSerializer.h"
 #include "slang/ast/Compilation.h"
@@ -525,13 +525,13 @@ void ConfigBlockSymbol::resolve() const {
                     auto [it, inserted] = overrides.specificLibRules.emplace(specificLib, rule);
                     if (!inserted) {
                         mergeRules(*it->second, *rule, [&] {
-                            return fmt::format("cell '{}.{}'", specificLib->name, cellName);
+                            return std::format("cell '{}.{}'", specificLib->name, cellName);
                         });
                     }
                 }
                 else if (overrides.defaultRule) {
                     mergeRules(*overrides.defaultRule, *rule,
-                               [&] { return fmt::format("cell '{}'", cellName); });
+                               [&] { return std::format("cell '{}'", cellName); });
                 }
                 else {
                     overrides.defaultRule = rule;

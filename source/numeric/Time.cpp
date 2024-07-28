@@ -8,7 +8,7 @@
 #include "slang/numeric/Time.h"
 
 #include <cmath>
-#include <fmt/core.h>
+#include <format>
 #include <ostream>
 
 #include "slang/util/String.h"
@@ -175,7 +175,7 @@ double TimeScale::apply(double value, TimeUnit unit, bool roundToPrecision) cons
 }
 
 std::string TimeScale::toString() const {
-    return fmt::format("{} / {}", base.toString(), precision.toString());
+    return std::format("{} / {}", base.toString(), precision.toString());
 }
 
 std::ostream& operator<<(std::ostream& os, const TimeScale& ts) {

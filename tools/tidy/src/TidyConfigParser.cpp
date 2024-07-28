@@ -3,7 +3,7 @@
 
 #include "TidyConfigParser.h"
 
-#include "fmt/format.h"
+#include <format>
 #include <fstream>
 
 #include "slang/util/OS.h"
@@ -113,13 +113,13 @@ void TidyConfigParser::parseInitial() {
 
     if (!isalpha(currentChar))
         reportErrorAndExit(
-            fmt::format("Unexpected token with ascii_code ({}): {}", +currentChar, currentChar));
+            std::format("Unexpected token with ascii_code ({}): {}", +currentChar, currentChar));
 
     std::string str;
     currentChar = readIf(str, isalpha);
 
     if (currentChar != ':')
-        reportErrorAndExit(fmt::format("Expected token: ':', found: (ASCIICode: {}){}",
+        reportErrorAndExit(std::format("Expected token: ':', found: (ASCIICode: {}){}",
                                        +currentChar, currentChar));
 
     if (auto keyword = keywords.find(str); keyword != keywords.end()) {
@@ -133,7 +133,7 @@ void TidyConfigParser::parseInitial() {
         }
     }
     else {
-        reportErrorAndExit(fmt::format("Expected a keyword found: {}", str));
+        reportErrorAndExit(std::format("Expected a keyword found: {}", str));
     }
 }
 
@@ -168,18 +168,18 @@ void TidyConfigParser::parseChecks() {
             else if (currentChar == ',') {
                 currentChar = nextChar();
                 if (currentChar != '\n') {
-                    reportErrorAndExit(fmt::format("Expected new line but found: ({}){}",
+                    reportErrorAndExit(std::format("Expected new line but found: ({}){}",
                                                    +currentChar, currentChar));
                 }
                 continue;
             }
             else {
                 reportErrorAndExit(
-                    fmt::format("Expected ',' but found: ({}){}", +currentChar, currentChar));
+                    std::format("Expected ',' but found: ({}){}", +currentChar, currentChar));
             }
         }
         else {
-            reportErrorAndExit(fmt::format("Expected '-' or '*' or a letter but found: ({}){}",
+            reportErrorAndExit(std::format("Expected '-' or '*' or a letter but found: ({}){}",
                                            +currentChar, currentChar));
         }
 
@@ -197,7 +197,7 @@ void TidyConfigParser::parseChecks() {
         else if (isalpha(currentChar))
             checkGroup.push_back(currentChar);
         else {
-            reportErrorAndExit(fmt::format("Expected '*' or a letter but found: ({}){}",
+            reportErrorAndExit(std::format("Expected '*' or a letter but found: ({}){}",
                                            +currentChar, currentChar));
         }
 
@@ -211,7 +211,7 @@ void TidyConfigParser::parseChecks() {
             }
             else if (currentChar != ',') {
                 reportErrorAndExit(
-                    fmt::format("Expected ',' but found: ({}){}", +currentChar, currentChar));
+                    std::format("Expected ',' but found: ({}){}", +currentChar, currentChar));
             }
             continue;
         }
@@ -224,7 +224,7 @@ void TidyConfigParser::parseChecks() {
             else if (isalpha(currentChar))
                 checkGroup.push_back(currentChar);
             else {
-                reportErrorAndExit(fmt::format("Expected '-' or a letter but found: ({}){}",
+                reportErrorAndExit(std::format("Expected '-' or a letter but found: ({}){}",
                                                +currentChar, currentChar));
             }
         }
@@ -236,7 +236,7 @@ void TidyConfigParser::parseChecks() {
             if (currentChar == ',') {
                 toggleCheck(checkGroup, checkName, newCheckState);
                 if (nextChar() != '\n') {
-                    reportErrorAndExit(fmt::format("Expected new line but found: ({}){}",
+                    reportErrorAndExit(std::format("Expected new line but found: ({}){}",
                                                    +currentChar, currentChar));
                 }
                 break;
@@ -259,7 +259,7 @@ void TidyConfigParser::parseChecks() {
                 return;
             }
             else {
-                reportErrorAndExit(fmt::format("Unexpected ({}){}", +currentChar, currentChar));
+                reportErrorAndExit(std::format("Unexpected ({}){}", +currentChar, currentChar));
             }
         }
     }
@@ -276,7 +276,7 @@ void TidyConfigParser::parseCheckConfigs() {
         char currentChar = readIf(optionName, isalpha);
 
         if (currentChar != ':') {
-            reportErrorAndExit(fmt::format("Expected ':' or a letter but found ({}){}",
+            reportErrorAndExit(std::format("Expected ':' or a letter but found ({}){}",
                                            +currentChar, currentChar));
         }
 
@@ -297,7 +297,7 @@ void TidyConfigParser::parseCheckConfigs() {
 
             if (currentChar != ']') {
                 reportErrorAndExit(
-                    fmt::format("Expected ']' but found ({}){}", +currentChar, currentChar));
+                    std::format("Expected ']' but found ({}){}", +currentChar, currentChar));
             }
             currentChar = nextChar();
         }
@@ -311,7 +311,7 @@ void TidyConfigParser::parseCheckConfigs() {
             setCheckConfig(optionName, optionValues);
             if (nextChar() != '\n') {
                 reportErrorAndExit(
-                    fmt::format("Expected new line but found: ({}){}", +currentChar, currentChar));
+                    std::format("Expected new line but found: ({}){}", +currentChar, currentChar));
             }
         }
         else if (currentChar == '\n' || currentChar == 0) {
@@ -322,7 +322,7 @@ void TidyConfigParser::parseCheckConfigs() {
             return;
         }
         else {
-            reportErrorAndExit(fmt::format("Expected ',' new line or a letter but found ({}){}",
+            reportErrorAndExit(std::format("Expected ',' new line or a letter but found ({}){}",
                                            +currentChar, currentChar));
         }
     }
@@ -336,7 +336,7 @@ void TidyConfigParser::toggleAllGroupChecks(const std::string& groupName,
                                             TidyConfig::CheckStatus status) {
     auto kind = slang::tidyKindFromStr(groupName);
     if (!kind)
-        reportErrorAndExit(fmt::format("Group {} does not exist", groupName));
+        reportErrorAndExit(std::format("Group {} does not exist", groupName));
 
     config.toggleGroup(kind.value(), status);
 }
@@ -344,19 +344,19 @@ void TidyConfigParser::toggleAllGroupChecks(const std::string& groupName,
 void TidyConfigParser::toggleCheck(const std::string& groupName, const std::string& checkName,
                                    TidyConfig::CheckStatus status) {
     if (checkName.empty()) {
-        reportWarning(fmt::format(
+        reportWarning(std::format(
             "Empty check name in group {0}, you can toggle the whole group with {0}-*", groupName));
         return;
     }
 
     auto kind = slang::tidyKindFromStr(groupName);
     if (!kind)
-        reportErrorAndExit(fmt::format("Group {} does not exist", groupName));
+        reportErrorAndExit(std::format("Group {} does not exist", groupName));
     bool found = config.toggleCheck(kind.value(), formatCheckName(checkName), status);
 
     if (!found)
         reportWarning(
-            fmt::format("Check name {} does not exist in group {}", checkName, groupName));
+            std::format("Check name {} does not exist in group {}", checkName, groupName));
 }
 
 void TidyConfigParser::parseConfigValue(std::string& config, std::string&& configValue) {
@@ -372,7 +372,7 @@ void TidyConfigParser::parseConfigValue(bool& config, std::string&& configValue)
         config = configValue == "1";
     }
     else {
-        reportErrorAndExit(fmt::format("Expected boolean expression but got '{}'", configValue));
+        reportErrorAndExit(std::format("Expected boolean expression but got '{}'", configValue));
     }
 }
 
@@ -386,7 +386,7 @@ void TidyConfigParser::setCheckConfig(const std::string& configName,
             else {
                 if (configValues.size() != 1) {
                     reportErrorAndExit(
-                        fmt::format("Expected one configuration value for '{}' but got {}",
+                        std::format("Expected one configuration value for '{}' but got {}",
                                     configName, configValues.size()));
                 }
                 parseConfigValue(v, std::move(configValues.front()));
@@ -401,14 +401,14 @@ void TidyConfigParser::setCheckConfig(const std::string& configName,
 }
 
 void TidyConfigParser::reportErrorAndExit(const std::string& str) const {
-    slang::OS::printE(fmt::format("Error while parsing slang-tidy config: {} "
+    slang::OS::printE(std::format("Error while parsing slang-tidy config: {} "
                                   "{}:{}\n\t{}\n",
                                   filePath, line, col, str));
     exit(1);
 }
 
 void TidyConfigParser::reportWarning(const std::string& str) const {
-    slang::OS::print(fmt::format("Warning while parsing slang-tidy config: {} "
+    slang::OS::print(std::format("Warning while parsing slang-tidy config: {} "
                                  "{}:{}\n\t{}\n",
                                  filePath, line, col, str));
 }

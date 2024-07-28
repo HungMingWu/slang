@@ -7,7 +7,7 @@
 //------------------------------------------------------------------------------
 #include "slang/driver/SourceLoader.h"
 
-#include <fmt/core.h>
+#include <format>
 
 #include "slang/parsing/Preprocessor.h"
 #include "slang/syntax/AllSyntax.h"
@@ -118,7 +118,7 @@ void SourceLoader::addLibraryMapsInternal(std::string_view pattern, const fs::pa
 
         if (!seenMaps.insert(path).second) {
             errors.emplace_back(
-                fmt::format("library map '{}' includes itself recursively", getU8Str(path)));
+                std::format("library map '{}' includes itself recursively", getU8Str(path)));
             continue;
         }
 
@@ -460,7 +460,7 @@ void SourceLoader::addFilesInternal(std::string_view pattern, const fs::path& ba
             auto& entry = fileEntries[it->second];
             if (unit || entry.unit) {
                 errors.emplace_back(
-                    fmt::format("'{}': included in multiple compilation units", getU8Str(path)));
+                    std::format("'{}': included in multiple compilation units", getU8Str(path)));
                 continue;
             }
 
@@ -557,7 +557,7 @@ SourceLoader::LoadResult SourceLoader::loadAndParse(const FileEntry& entry, cons
 }
 
 void SourceLoader::addError(const std::filesystem::path& path, std::error_code ec) {
-    errors.emplace_back(fmt::format("'{}': {}", getU8Str(path), ec.message()));
+    errors.emplace_back(std::format("'{}': {}", getU8Str(path), ec.message()));
 }
 
 } // namespace slang::driver

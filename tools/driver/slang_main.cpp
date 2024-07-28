@@ -5,7 +5,6 @@
 // SPDX-FileCopyrightText: Michael Popoloski
 // SPDX-License-Identifier: MIT
 //------------------------------------------------------------------------------
-#include <fmt/color.h>
 #include <fstream>
 #include <iostream>
 
@@ -117,12 +116,12 @@ int driverMain(int argc, TArgs argv) {
 
         if (showHelp == true) {
             OS::print(
-                fmt::format("{}", driver.cmdLine.getHelpText("slang SystemVerilog compiler")));
+                std::format("{}", driver.cmdLine.getHelpText("slang SystemVerilog compiler")));
             return 0;
         }
 
         if (showVersion == true) {
-            OS::print(fmt::format("slang version {}.{}.{}+{}\n", VersionInfo::getMajor(),
+            OS::print(std::format("slang version {}.{}.{}+{}\n", VersionInfo::getMajor(),
                                   VersionInfo::getMinor(), VersionInfo::getPatch(),
                                   VersionInfo::getHash()));
             return 0;
@@ -174,7 +173,7 @@ int driverMain(int argc, TArgs argv) {
         }
         SLANG_CATCH(const std::exception& e) {
 #if __cpp_exceptions
-            OS::printE(fmt::format("internal compiler error: {}\n", e.what()));
+            OS::printE(std::format("internal compiler error: {}\n", e.what()));
 #endif
             return 4;
         }
@@ -184,7 +183,7 @@ int driverMain(int argc, TArgs argv) {
             TimeTrace::write(file);
             if (!file.flush()) {
                 SLANG_THROW(std::runtime_error(
-                    fmt::format("Unable to write time trace to '{}'", *timeTrace)));
+                    std::format("Unable to write time trace to '{}'", *timeTrace)));
             }
         }
 
@@ -192,7 +191,7 @@ int driverMain(int argc, TArgs argv) {
     }
     SLANG_CATCH(const std::exception& e) {
 #if __cpp_exceptions
-        OS::printE(fmt::format("{}\n", e.what()));
+        OS::printE(std::format("{}\n", e.what()));
 #endif
         return 6;
     }

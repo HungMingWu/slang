@@ -93,7 +93,7 @@ void TextDiagnosticClient::report(const ReportedDiagnostic& diag) {
             if (name.empty())
                 name = "expanded from here";
             else
-                name = fmt::format("expanded from macro '{}'", name);
+                name = std::format("expanded from macro '{}'", name);
 
             SmallVector<SourceRange> macroRanges;
             engine->mapSourceRanges(loc, diag.ranges, macroRanges);

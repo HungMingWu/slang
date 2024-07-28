@@ -8,7 +8,7 @@
 #include "slang/util/TimeTrace.h"
 
 #include <chrono>
-#include <fmt/core.h>
+#include <format>
 #include <mutex>
 #include <ostream>
 #include <thread>
@@ -112,7 +112,7 @@ struct TimeTrace::Profiler {
         for (auto& entry : entries) {
             auto startUs = duration_cast<microseconds>(entry.start - startTime).count();
             auto durationUs = duration_cast<microseconds>(entry.duration).count();
-            os << fmt::format("{{ \"pid\":1, \"tid\":{}, \"ph\":\"X\", \"ts\":{}, "
+            os << std::format("{{ \"pid\":1, \"tid\":{}, \"ph\":\"X\", \"ts\":{}, "
                               "\"dur\":{}, \"name\":\"{}\", \"args\":{{ \"detail\":\"{}\" }} }},\n",
                               getTID(entry.threadId), startUs, durationUs, escapeString(entry.name),
                               escapeString(entry.detail));

@@ -3,10 +3,10 @@
 
 #include "SvType.h"
 
-#include <fmt/format.h>
 #include <iostream>
 
 #include "slang/ast/Scope.h"
+#include "slang/util/Format.h"
 
 using namespace slang::ast;
 
@@ -33,9 +33,9 @@ std::ostream& operator<<(std::ostream& os, const SvType& type) {
 std::string SvType::toString() const {
     std::stringstream ss;
     if (cppType == CppType::SC_BV)
-        ss << fmt::format(fmt::runtime(CppType::toString(cppType)), size);
+        ss << slang::format(slang::runtime(CppType::toString(cppType)), size);
     else if (this->isEnum() || this->isStruct())
-        ss << fmt::format(fmt::runtime(CppType::toString(cppType)), name);
+        ss << slang::format(slang::runtime(CppType::toString(cppType)), name);
     else
         ss << CppType::toString(cppType);
 

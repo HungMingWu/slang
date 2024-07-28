@@ -126,7 +126,7 @@ void CommandLine::addInternal(std::string_view name, OptionStorage storage, std:
 
         if (!optionMap.try_emplace(std::string(curr), option).second) {
             SLANG_THROW(
-                std::invalid_argument(fmt::format("Argument with name '{}' already exists", curr)));
+                std::invalid_argument(std::format("Argument with name '{}' already exists", curr)));
         }
 
         if (index == std::string_view::npos)
@@ -325,7 +325,7 @@ bool CommandLine::parse(std::span<const std::string_view> args, ParseOptions opt
         if (expectingVal) {
             std::string result = expectingVal->set(expectingValName, arg, options.ignoreDuplicates);
             if (!result.empty())
-                errors.emplace_back(fmt::format("{}: {}", programName, result));
+                errors.emplace_back(std::format("{}: {}", programName, result));
 
             expectingVal = nullptr;
             continue;
@@ -393,13 +393,13 @@ bool CommandLine::parse(std::span<const std::string_view> args, ParseOptions opt
     }
 
     if (expectingVal) {
-        errors.emplace_back(fmt::format("{}: no value provided for argument '{}'"sv, programName,
+        errors.emplace_back(std::format("{}: no value provided for argument '{}'"sv, programName,
                                         expectingValName));
     }
 
     if (!positional && !firstPositional.empty() && !hadUnknowns) {
         errors.emplace_back(
-            fmt::format("{}: positional arguments are not allowed (see e.g. '{}')"sv, programName,
+            std::format("{}: positional arguments are not allowed (see e.g. '{}')"sv, programName,
                         firstPositional));
     }
 
@@ -437,10 +437,10 @@ void CommandLine::handleArg(std::string_view arg, Option*& expectingVal,
     // If we still didn't find it, that's an error.
     if (!option) {
         // Try to find something close to give a better error message.
-        auto error = fmt::format("{}: unknown command line argument '{}'"sv, programName, arg);
+        auto error = std::format("{}: unknown command line argument '{}'"sv, programName, arg);
         auto nearest = findNearestMatch(arg);
         if (!nearest.empty())
-            error += fmt::format(", did you mean '{}'?"sv, nearest);
+            error += std::format(", did you mean '{}'?"sv, nearest);
 
         hadUnknowns = true;
         errors.emplace_back(std::move(error));
@@ -457,18 +457,18 @@ void CommandLine::handleArg(std::string_view arg, Option*& expectingVal,
     else {
         std::string result = option->set(arg, value, options.ignoreDuplicates);
         if (!result.empty())
-            errors.emplace_back(fmt::format("{}: {}", programName, result));
+            errors.emplace_back(std::format("{}: {}", programName, result));
     }
 }
 
 std::string CommandLine::getHelpText(std::string_view overview) const {
     std::string result;
     if (!overview.empty())
-        result = fmt::format("OVERVIEW: {}\n\n"sv, overview);
+        result = std::format("OVERVIEW: {}\n\n"sv, overview);
 
-    result += fmt::format("USAGE: {} [options]"sv, programName);
+    result += std::format("USAGE: {} [options]"sv, programName);
     if (positional)
-        result += fmt::format(" {}...", positional->valueName);
+        result += std::format(" {}...", positional->valueName);
 
     result += "\n\nOPTIONS:\n"sv;
 
@@ -493,9 +493,9 @@ std::string CommandLine::getHelpText(std::string_view overview) const {
     maxLen += 2;
 
     // Finally append all groups to the output.
-    std::string indent = fmt::format("  {:{}}"sv, " "sv, maxLen);
+    std::string indent = std::format("  {:{}}"sv, " "sv, maxLen);
     for (auto& [opt, key] : lines) {
-        result += fmt::format("  {:{}}"sv, key, maxLen);
+        result += std::format("  {:{}}"sv, key, maxLen);
         if (!opt->desc.empty()) {
             std::string_view desc = opt->desc;
             while (true) {
@@ -529,7 +529,7 @@ void CommandLine::handlePlusArg(std::string_view arg, ParseOptions options, bool
     if (it == optionMap.end()) {
         hadUnknowns = true;
         errors.emplace_back(
-            fmt::format("{}: unknown command line argument '{}'"sv, programName, arg));
+            std::format("{}: unknown command line argument '{}'"sv, programName, arg));
         return;
     }
 
@@ -537,7 +537,7 @@ void CommandLine::handlePlusArg(std::string_view arg, ParseOptions options, bool
     if (value.empty()) {
         if (option->expectsValue()) {
             errors.emplace_back(
-                fmt::format("{}: no value provided for argument '{}'"sv, programName, arg));
+                std::format("{}: no value provided for argument '{}'"sv, programName, arg));
         }
         else {
             std::string result = option->set(arg, value, options.ignoreDuplicates);
@@ -559,7 +559,7 @@ void CommandLine::handlePlusArg(std::string_view arg, ParseOptions options, bool
 
         std::string result = option->set(arg, curr, options.ignoreDuplicates);
         if (!result.empty())
-            errors.emplace_back(fmt::format("{}: {}", programName, result));
+            errors.emplace_back(std::format("{}: {}", programName, result));
 
     } while (!value.empty());
 }
@@ -660,7 +660,7 @@ std::string CommandLine::Option::set(std::string_view name, std::string_view val
                 if (!allowValue(*arg)) {
                     if (ignoreDup)
                         return std::string();
-                    return fmt::format("more than one value provided for argument '{}'"sv, name);
+                    return std::format("more than one value provided for argument '{}'"sv, name);
                 }
                 return set(*arg, name, value);
             }
@@ -677,7 +677,7 @@ static std::optional<bool> parseBool(std::string_view name, std::string_view val
     if (value == "False" || value == "false")
         return false;
 
-    error = fmt::format("invalid value '{}' for boolean argument '{}'", value, name);
+    error = std::format("invalid value '{}' for boolean argument '{}'", value, name);
     return {};
 }
 
@@ -685,7 +685,7 @@ template<typename T>
 static std::optional<T> parseInt(std::string_view name, std::string_view value,
                                  std::string& error) {
     if (value.empty()) {
-        error = fmt::format("expected value for argument '{}'", name);
+        error = std::format("expected value for argument '{}'", name);
         return {};
     }
 
@@ -693,7 +693,7 @@ static std::optional<T> parseInt(std::string_view name, std::string_view value,
     auto end = value.data() + value.size();
     auto result = std::from_chars(value.data(), end, val);
     if (result.ec != std::errc() || result.ptr != end) {
-        error = fmt::format("invalid value '{}' for integer argument '{}'", value, name);
+        error = std::format("invalid value '{}' for integer argument '{}'", value, name);
         return {};
     }
 
@@ -703,14 +703,14 @@ static std::optional<T> parseInt(std::string_view name, std::string_view value,
 static std::optional<double> parseDouble(std::string_view name, std::string_view value,
                                          std::string& error) {
     if (value.empty()) {
-        error = fmt::format("expected value for argument '{}'", name);
+        error = std::format("expected value for argument '{}'", name);
         return {};
     }
 
     size_t pos;
     std::optional<double> val = strToDouble(value, &pos);
     if (!val || pos != value.size()) {
-        error = fmt::format("invalid value '{}' for float argument '{}'", value, name);
+        error = std::format("invalid value '{}' for float argument '{}'", value, name);
         return {};
     }
 
@@ -853,7 +853,7 @@ std::string CommandLine::addIgnoreCommand(std::string_view value) {
     const size_t firstCommaIndex = value.find_first_of(',');
     const size_t lastCommaIndex = value.find_last_of(',');
     if (firstCommaIndex == std::string_view::npos || firstCommaIndex != lastCommaIndex)
-        return fmt::format("missing or extra comma in argument '{}'", value);
+        return std::format("missing or extra comma in argument '{}'", value);
 
     const std::string_view numArgs = value.substr(firstCommaIndex + 1);
     value = value.substr(0, firstCommaIndex);
@@ -871,7 +871,7 @@ std::string CommandLine::addRenameCommand(std::string_view value) {
     const size_t firstCommaIndex = value.find_first_of(',');
     const size_t lastCommaIndex = value.find_last_of(',');
     if (firstCommaIndex == std::string_view::npos || firstCommaIndex != lastCommaIndex)
-        return fmt::format("missing or extra comma in argument '{}'", value);
+        return std::format("missing or extra comma in argument '{}'", value);
 
     const std::string_view slangName = value.substr(firstCommaIndex + 1);
     value = value.substr(0, firstCommaIndex);

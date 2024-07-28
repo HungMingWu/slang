@@ -67,7 +67,7 @@ void registerUtil(py::module_& m) {
         .def(py::hash(py::self))
         .def("__bool__", &BufferID::valid)
         .def("__repr__",
-             [](const BufferID& self) { return fmt::format("BufferID({})", self.getId()); });
+             [](const BufferID& self) { return std::format("BufferID({})", self.getId()); });
 
     py::class_<SourceLocation>(m, "SourceLocation")
         .def(py::init<>())
@@ -84,7 +84,7 @@ void registerUtil(py::module_& m) {
         .def(py::hash(py::self))
         .def("__bool__", &SourceLocation::valid)
         .def("__repr__", [](const SourceLocation& self) {
-            return fmt::format("SourceLocation({}, {})", self.buffer().getId(), self.offset());
+            return std::format("SourceLocation({}, {})", self.buffer().getId(), self.offset());
         });
 
     py::class_<SourceRange>(m, "SourceRange")
@@ -196,7 +196,7 @@ void registerUtil(py::module_& m) {
         .def(py::hash(py::self))
         .def("__bool__", &DiagCode::valid)
         .def("__repr__",
-             [](const DiagCode& self) { return fmt::format("DiagCode({})", toString(self)); });
+             [](const DiagCode& self) { return std::format("DiagCode({})", toString(self)); });
 
     struct Diags {};
     py::class_<Diags> diagHolder(m, "Diags");
@@ -245,7 +245,7 @@ void registerUtil(py::module_& m) {
         .def("getName", &DiagGroup::getName)
         .def("getDiags", &DiagGroup::getDiags)
         .def("__repr__",
-             [](const DiagGroup& self) { return fmt::format("DiagGroup({})", self.getName()); });
+             [](const DiagGroup& self) { return std::format("DiagGroup({})", self.getName()); });
 
     py::class_<DiagnosticEngine>(m, "DiagnosticEngine")
         .def(py::init<const SourceManager&>(), "sourceManager"_a)

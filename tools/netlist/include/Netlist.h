@@ -10,8 +10,7 @@
 #include "Config.h"
 #include "Debug.h"
 #include "DirectedGraph.h"
-#include "fmt/color.h"
-#include "fmt/format.h"
+#include <format>
 #include <iostream>
 #include <utility>
 
@@ -66,8 +65,8 @@ static std::string resolveSymbolHierPath(const ast::Symbol& symbol) {
     if (symbol.kind == ast::SymbolKind::ModportPort) {
         auto const& modportSymbol = symbol.getParentScope()->asSymbol();
         auto& modportName = modportSymbol.name;
-        auto oldSuffix = fmt::format(".{}.{}", modportSymbol.name, symbol.name);
-        auto newSuffix = fmt::format(".{}", symbol.name);
+        auto oldSuffix = std::format(".{}.{}", modportSymbol.name, symbol.name);
+        auto newSuffix = std::format(".{}", symbol.name);
         DEBUG_PRINT("hierPath={}, oldSuffix={}, newSuffix={}\n", buffer, oldSuffix, newSuffix);
         SLANG_ASSERT(buffer.ends_with(oldSuffix));
         buffer.replace(buffer.end() - (ptrdiff_t)oldSuffix.length(), buffer.end(),
@@ -126,10 +125,10 @@ struct VariableElementSelect : public VariableSelectorBase {
 
     std::string toString() const override {
         if (indexIsConstant()) {
-            return fmt::format("[{}]", index.toString());
+            return std::format("[{}]", index.toString());
         }
         else {
-            return fmt::format("[{}]", expr.syntax->toString());
+            return std::format("[{}]", expr.syntax->toString());
         }
     }
 };
@@ -181,11 +180,11 @@ struct VariableRangeSelect : public VariableSelectorBase {
         }
         switch (expr.getSelectionKind()) {
             case ast::RangeSelectionKind::Simple:
-                return fmt::format("[{}:{}]", left, right);
+                return std::format("[{}:{}]", left, right);
             case ast::RangeSelectionKind::IndexedUp:
-                return fmt::format("[{}+:{}]", left, right);
+                return std::format("[{}+:{}]", left, right);
             case ast::RangeSelectionKind::IndexedDown:
-                return fmt::format("[{}-:{}]", left, right);
+                return std::format("[{}-:{}]", left, right);
             default:
                 SLANG_UNREACHABLE;
         }
@@ -203,7 +202,7 @@ struct VariableMemberAccess : public VariableSelectorBase {
         return otherKind == VariableSelectorKind::MemberAccess;
     }
 
-    std::string toString() const override { return fmt::format(".{}", name); }
+    std::string toString() const override { return std::format(".{}", name); }
 };
 
 /// A class representing a dependency between two variables in the netlist.
@@ -338,10 +337,10 @@ public:
     /// Return a string representation of this variable reference.
     std::string toString() const {
         if (selectors.empty()) {
-            return fmt::format("{}", getName());
+            return std::format("{}", getName());
         }
         else {
-            return fmt::format("{}{}", getName(), selectorString());
+            return std::format("{}{}", getName(), selectorString());
         }
     }
 

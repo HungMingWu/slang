@@ -30,9 +30,9 @@ std::string ConstantValue::toString(bitwidth_t abbreviateThresholdBits, bool exa
             else if constexpr (std::is_same_v<T, SVInt>)
                 return arg.toString(abbreviateThresholdBits, exactUnknowns);
             else if constexpr (std::is_same_v<T, real_t>)
-                return fmt::format("{}", double(arg));
+                return std::format("{}", double(arg));
             else if constexpr (std::is_same_v<T, shortreal_t>)
-                return fmt::format("{}", float(arg));
+                return std::format("{}", float(arg));
             else if constexpr (std::is_same_v<T, ConstantValue::NullPlaceholder>)
                 return "null"s;
             else if constexpr (std::is_same_v<T, ConstantValue::UnboundedPlaceholder>)
@@ -52,7 +52,7 @@ std::string ConstantValue::toString(bitwidth_t abbreviateThresholdBits, bool exa
                 return buffer.str();
             }
             else if constexpr (std::is_same_v<T, std::string>)
-                return fmt::format("\"{}\"", arg);
+                return std::format("\"{}\"", arg);
             else if constexpr (std::is_same_v<T, Map>) {
                 FormatBuffer buffer;
                 buffer.append(useAssignmentPatterns ? "'{"sv : "["sv);
@@ -91,7 +91,7 @@ std::string ConstantValue::toString(bitwidth_t abbreviateThresholdBits, bool exa
                 if (!arg->activeMember)
                     return "(unset)"s;
 
-                return fmt::format("({}) {}", *arg->activeMember,
+                return std::format("({}) {}", *arg->activeMember,
                                    arg->value.toString(abbreviateThresholdBits, exactUnknowns,
                                                        useAssignmentPatterns));
             }
@@ -687,7 +687,7 @@ std::optional<ConstantRange> ConstantRange::getIndexedRange(int32_t l, int32_t r
 }
 
 std::string ConstantRange::toString() const {
-    return fmt::format("[{}:{}]", left, right);
+    return std::format("[{}:{}]", left, right);
 }
 
 std::ostream& operator<<(std::ostream& os, const ConstantRange& cr) {
