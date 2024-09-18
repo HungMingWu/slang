@@ -49,9 +49,23 @@ add_custom_command(
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/util/VersionInfo.cpp.in
                ${CMAKE_CURRENT_BINARY_DIR}/VersionInfo.cpp @ONLY)
 
+file(GLOB_RECURSE HEADER_FILES ${PROJECT_SOURCE_DIR}/include/*.h)
+
 # -------- Primary library target
-add_library(
+add_library(slang_slang)
+
+target_sources(
   slang_slang
+PUBLIC
+  FILE_SET slang_export_headers
+  TYPE HEADERS
+  BASE_DIRS ${PROJECT_SOURCE_DIR}/include
+  FILES ${HEADER_FILES}
+  FILE_SET slang_export
+  TYPE HEADERS
+  BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/slang/slang_export.h
+PRIVATE
   ${CMAKE_CURRENT_BINARY_DIR}/AllSyntax.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/SyntaxClone.cpp
   ${CMAKE_CURRENT_BINARY_DIR}/DiagCode.cpp
@@ -115,12 +129,7 @@ set_target_properties(
 target_compile_options(slang_slang PRIVATE ${SLANG_WARN_FLAGS})
 target_compile_definitions(slang_slang PUBLIC $<$<CONFIG:Debug>:DEBUG>)
 
-# Include directories
-target_include_directories(
-  slang_slang
-  PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include/>"
-         "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>"
-         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
+# Include system directories
 target_include_directories(
   slang_slang SYSTEM
   PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../external/>")
@@ -174,29 +183,3 @@ generate_export_header(
   ${CMAKE_CURRENT_BINARY_DIR}/slang/slang_export.h
   CUSTOM_CONTENT_FROM_VARIABLE
   suppress_export_warnings)
-
-# Installation rules for headers.
-if(SLANG_INCLUDE_INSTALL)
-  install(
-    DIRECTORY ../include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    COMPONENT slang_Development)
-  install(
-    DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/slang/diagnostics/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/slang/diagnostics
-    COMPONENT slang_Development)
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/slang/syntax/AllSyntax.h
-          ${CMAKE_CURRENT_BINARY_DIR}/slang/syntax/SyntaxKind.h
-          ${CMAKE_CURRENT_BINARY_DIR}/slang/syntax/SyntaxFwd.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/slang/syntax/
-    COMPONENT slang_Development)
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/slang/parsing/TokenKind.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/slang/parsing/
-    COMPONENT slang_Development)
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/slang/slang_export.h
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/slang/
-    COMPONENT slang_Development)
-endif()

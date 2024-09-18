@@ -11,7 +11,7 @@ target_link_libraries(
   slang_netlist
   PRIVATE slang::slang
   PUBLIC ${SLANG_LIBRARIES})
-target_include_directories(slang_netlist PRIVATE include ../../include)
+target_include_directories(slang_netlist PRIVATE include)
 set_target_properties(slang_netlist PROPERTIES OUTPUT_NAME "slang-netlist")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Windows")

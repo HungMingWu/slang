@@ -10,7 +10,9 @@ install(
   LIBRARY COMPONENT slang_Runtime NAMELINK_COMPONENT slang_Development
   ARCHIVE COMPONENT slang_Development
   INCLUDES
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  FILE_SET slang_export_headers
+  FILE_SET slang_export)
 
 if(SLANG_INCLUDE_TOOLS)
   install(TARGETS slang_driver RUNTIME COMPONENT slang_Runtime)
